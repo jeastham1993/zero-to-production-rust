@@ -1,7 +1,46 @@
+use once_cell::sync::Lazy;
+use opentelemetry::sdk::trace::{Config, TracerProvider};
+use opentelemetry::sdk::Resource;
+use opentelemetry::trace::noop::NoopSpanExporter;
+use opentelemetry::KeyValue;
+use opentelemetry_otlp::SpanExporterBuilder;
+use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let mut configuration = get_configuration().expect("Failed to read configuration");
+    let default_filter = "info".to_string();
+    let subscriber_name = "test".to_string();
+    configuration.telemetry.dataset_name = format!("test-{}", configuration.telemetry.dataset_name);
+
+    let default_trace_provider = TracerProvider::builder()
+        .with_simple_exporter(NoopSpanExporter::default())
+        .build();
+
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(
+            subscriber_name,
+            default_filter,
+            std::io::stdout,
+            &configuration.telemetry,
+            &default_trace_provider,
+        );
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(
+            subscriber_name,
+            default_filter,
+            std::io::sink,
+            &configuration.telemetry,
+            &default_trace_provider,
+        );
+        init_subscriber(subscriber);
+    }
+});
 
 pub struct TestApp {
     pub address: String,
@@ -80,6 +119,8 @@ async fn subscribe_should_return_400_when_data_is_missing() {
 }
 
 async fn spawn_app() -> TestApp {
+    Lazy::force(&TRACING);
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failure binding to address");
 
     let port = listener.local_addr().unwrap().port();
@@ -103,7 +144,7 @@ async fn spawn_app() -> TestApp {
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let connection_string = config.connection_string_without_db();
 
-    let mut connection = PgConnection::connect(&connection_string)
+    let mut connection = PgConnection::connect(&connection_string.expose_secret())
         .await
         .expect("Failed to connect to postgres");
 
@@ -112,7 +153,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database");
 
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
 

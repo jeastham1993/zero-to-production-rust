@@ -5,3 +5,7 @@ database:
   username: "postgres"
   password: "password"
   database_name: "newsletter"
+telemetry:
+  otlp_endpoint: "https://api.honeycomb.io/v1/traces"
+  honeycomb_api_key: "COq84NfvgsAeYIZqaqB1TH"
+  dataset_name: "zero2prod"

@@ -14,6 +14,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Initialize database
+        run: cargo install --version="~0.7" sqlx-cli --no-default-features --features rustls,postgres
+      - name: Initialize database
         run: ./scripts/init_db.sh
 
   test:

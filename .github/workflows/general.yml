@@ -13,9 +13,9 @@ jobs:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy,rustfmt,tarpaulin
+          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Initialize database
+      - name: Install sqlxcli
         run: cargo install --version="~0.7" sqlx-cli --no-default-features --features rustls,postgres
       - name: Initialize database
         run: ./scripts/init_db.sh
@@ -27,4 +27,5 @@ jobs:
         run: cargo test
       - name: Generate code coverage
         run: |
+          cargo install tarpaulin
           cargo tarpaulin --verbose --workspace

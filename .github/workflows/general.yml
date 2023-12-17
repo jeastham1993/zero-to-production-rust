@@ -6,6 +6,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  init:
+    name: Initialize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Initialize database
+        run: ./scripts/init_db.sh
+
   test:
     name: Test
     runs-on: ubuntu-latest

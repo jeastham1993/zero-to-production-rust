@@ -34,6 +34,6 @@ export DATABASE_URL
 >&2 echo "Postgres is up and running on port ${DB_PORT} - running migrations now!"
 
 sqlx database create
-#sqlx migrate run
+sqlx migrate run
 
 >&2 echo "Postgres migrated. Ready to go! :-)"

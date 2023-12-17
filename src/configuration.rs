@@ -39,8 +39,8 @@ impl DatabaseSettings {
         );
 
         let mut uri = Url::parse(&db_url).unwrap();
-        uri.set_username(&self.username);
-        uri.set_password(Some(self.password.expose_secret()));
+        let _ = uri.set_username(&self.username);
+        let _ = uri.set_password(Some(self.password.expose_secret()));
 
         Secret::new(uri.to_string())
     }
@@ -49,8 +49,8 @@ impl DatabaseSettings {
         let db_url = format!("postgres://{}:{}", self.host, self.port);
 
         let mut uri = Url::parse(&db_url).unwrap();
-        uri.set_username(&self.username);
-        uri.set_password(Some(self.password.expose_secret()));
+        let _ = uri.set_username(&self.username);
+        let _ = uri.set_password(Some(self.password.expose_secret()));
 
         Secret::new(uri.to_string())
     }

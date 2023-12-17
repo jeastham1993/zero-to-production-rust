@@ -1,6 +1,5 @@
-use reqwest::Url;
 use secrecy::ExposeSecret;
-use sqlx::{PgConnection, PgPool};
+use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::configuration::get_configuration;
 use zero2prod::startup::run;
@@ -11,7 +10,6 @@ async fn main() -> Result<(), std::io::Error> {
     let configuration = get_configuration().expect("Failed to read configuration");
 
     let tracer = init_tracer(&configuration.telemetry);
-
     let subscriber = get_subscriber(
         "zero2prod".into(),
         "info".into(),

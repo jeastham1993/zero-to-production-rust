@@ -1,11 +1,11 @@
 use crate::routes::health_check::health_check;
+use crate::routes::migrate::migrate_db;
 use crate::routes::subscriptions::subscribe;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use sqlx::PgPool;
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
-use crate::routes::migrate::migrate_db;
 
 pub fn run(listener: TcpListener, connection: PgPool) -> Result<Server, std::io::Error> {
     let connection = web::Data::new(connection);

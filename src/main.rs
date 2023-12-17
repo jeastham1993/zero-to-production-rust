@@ -1,5 +1,6 @@
+use reqwest::Url;
 use secrecy::ExposeSecret;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use std::net::TcpListener;
 use zero2prod::configuration::get_configuration;
 use zero2prod::startup::run;
@@ -18,12 +19,17 @@ async fn main() -> Result<(), std::io::Error> {
         &configuration.telemetry,
         &tracer,
     );
+
     init_subscriber(subscriber);
 
-    let connection = PgPool::connect(configuration.database.connection_string().expose_secret())
-        .await
-        .expect("Failure connecting to Postgres database");
+    let connection =
+        PgPool::connect_lazy(configuration.database.connection_string().expose_secret())
+            .expect("Failed to create Postgres connection pool");
 
-    let listener = TcpListener::bind("127.0.0.1:8080").expect("Failure binding to address");
+    let listener = TcpListener::bind(format!(
+        "{}:{}",
+        configuration.application.host_name, configuration.application.application_port
+    ))
+    .expect("Failure binding to address");
     run(listener, connection)?.await
 }

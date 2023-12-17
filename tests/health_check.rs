@@ -1,15 +1,12 @@
 use once_cell::sync::Lazy;
-use opentelemetry::sdk::trace::{Config, TracerProvider};
-use opentelemetry::sdk::Resource;
+use opentelemetry::sdk::trace::TracerProvider;
 use opentelemetry::trace::noop::NoopSpanExporter;
-use opentelemetry::KeyValue;
-use opentelemetry_otlp::SpanExporterBuilder;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     let mut configuration = get_configuration().expect("Failed to read configuration");

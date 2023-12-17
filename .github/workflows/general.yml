@@ -27,5 +27,5 @@ jobs:
         run: cargo test
       - name: Generate code coverage
         run: |
-          cargo install tarpaulin
+          cargo install cargo-tarpaulin
           cargo tarpaulin --verbose --workspace

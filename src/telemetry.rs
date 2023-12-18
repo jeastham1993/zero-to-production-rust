@@ -1,5 +1,8 @@
 use crate::configuration::TelemetrySettings;
-use opentelemetry::sdk::trace::Config;
+use actix_web::body::MessageBody;
+use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::Error;
+use opentelemetry::sdk::trace::{BatchSpanProcessorBuilder, Config};
 use opentelemetry::sdk::Resource;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::{
@@ -11,7 +14,8 @@ use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use tracing::subscriber::set_global_default;
-use tracing::{level_filters::LevelFilter, Subscriber};
+use tracing::{level_filters::LevelFilter, Span, Subscriber};
+use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::fmt::MakeWriter;
@@ -82,4 +86,21 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
             opentelemetry::runtime::Tokio,
         )
         .build()
+}
+
+pub struct CustomLevelRootSpanBuilder;
+
+impl RootSpanBuilder for CustomLevelRootSpanBuilder {
+    fn on_request_start(request: &ServiceRequest) -> Span {
+        let level = if request.path() == "/health_check" {
+            Level::TRACE
+        } else {
+            Level::INFO
+        };
+        tracing_actix_web::root_span!(level = level, request)
+    }
+
+    fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
+        DefaultRootSpanBuilder::on_request_end(span, outcome);
+    }
 }

@@ -32,6 +32,7 @@ reqwest = "0.11.13"
 unicode-segmentation = "1.10.1"
 validator = "0.16"
 rand = "0.8.5"
+async-trait = "0.1.74"
 
 [dependencies.sqlx]
 version = "0.7"

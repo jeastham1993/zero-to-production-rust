@@ -2,7 +2,7 @@ use crate::configuration::TelemetrySettings;
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::Error;
-use opentelemetry::sdk::trace::{BatchSpanProcessorBuilder, Config};
+use opentelemetry::sdk::trace::Config;
 use opentelemetry::sdk::Resource;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::{
@@ -40,12 +40,12 @@ where
         .with(env_filter)
         .with(JsonStorageLayer)
         .with(formatting_layer)
-        .with(LevelFilter::INFO)
         .with(tracing_subscriber::fmt::Layer::default())
         .with(
             tracing_opentelemetry::layer()
                 .with_tracer(trace_provider.tracer(config.dataset_name.clone())),
         )
+        .with(LevelFilter::INFO)
 }
 
 pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {

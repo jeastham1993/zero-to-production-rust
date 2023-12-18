@@ -14,7 +14,7 @@ actix-web-opentelemetry = "0.16"
 tokio = {version = "1", features = ["macros", "rt-multi-thread"]}
 serde = {version = "1", features = ["derive"]}
 config = "0.13"
-uuid = {version="1", features = ["v4"]}
+ulid-rs = "0.1.0"
 chrono = {version="0.4.22", default-features = false, features = ["clock"]}
 tracing = "0.1"
 tracing-subscriber ={version="0.3", features = ["registry", "env-filter", "std"]}
@@ -31,6 +31,7 @@ opentelemetry-semantic-conventions = "0.13.0"
 reqwest = "0.11.13"
 unicode-segmentation = "1.10.1"
 validator = "0.16"
+rand = "0.8.5"
 
 [dependencies.sqlx]
 version = "0.7"
@@ -52,3 +53,4 @@ fake = "2.6.1"
 rand = "0.8.5"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
+uuid = {version="1", features = ["v4"]}

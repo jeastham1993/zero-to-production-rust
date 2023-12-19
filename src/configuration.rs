@@ -1,28 +1,45 @@
 use reqwest::Url;
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
+use sqlx::postgres::PgConnectOptions;
+use std::time::Duration;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub telemetry: TelemetrySettings,
     pub application: ApplicationSettings,
+    pub email_settings: EmailClientSettings,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ApplicationSettings {
     pub application_port: u16,
     pub host_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct TelemetrySettings {
     pub otlp_endpoint: String,
     pub honeycomb_api_key: Secret<String>,
     pub dataset_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: Secret<String>,
+    pub timeout_milliseconds: u64,
+}
+
+impl EmailClientSettings {
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_milliseconds)
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
@@ -32,6 +49,18 @@ pub struct DatabaseSettings {
 }
 
 impl DatabaseSettings {
+    pub fn without_db(&self) -> PgConnectOptions {
+        PgConnectOptions::new()
+            .host(&self.host)
+            .username(&self.username)
+            .password(self.password.expose_secret())
+            .port(self.port)
+    }
+
+    pub fn with_db(&self) -> PgConnectOptions {
+        self.without_db().database(&self.database_name)
+    }
+
     pub fn connection_string(&self) -> Secret<String> {
         let db_url = format!(
             "postgres://{}:{}/{}",

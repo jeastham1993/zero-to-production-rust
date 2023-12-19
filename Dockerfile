@@ -26,7 +26,7 @@ RUN apt-get update -y \
 COPY --from=builder /app/target/release/zero2prod zero2prod
 COPY migrations/ migrations/
 COPY configuration/base.yaml configuration/production.yaml configuration/
-
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.7.1 /lambda-adapter /opt/extensions/lambda-adapter
 ENV APP_ENVIRONMENT=production
 
 ENTRYPOINT ["./zero2prod"]

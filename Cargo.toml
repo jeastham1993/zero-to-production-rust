@@ -28,7 +28,6 @@ opentelemetry = { version = "0.17.0", features = ["rt-tokio"] }
 # Updating to 0.11 requires protoc installed but 0.10 fortunately does not
 opentelemetry-otlp = { version = "0.10", features = ["http-proto", "reqwest-client"] }
 opentelemetry-semantic-conventions = "0.13.0"
-reqwest = "0.11.13"
 unicode-segmentation = "1.10.1"
 validator = "0.16"
 rand = "0.8.5"
@@ -46,6 +45,11 @@ features = [
     "migrate"
 ]
 
+[dependencies.reqwest]
+version = "0.11"
+default-features = false
+features = ["json", "rustls-tls"]
+
 [dev-dependencies]
 reqwest = "0.11"
 once_cell = "1"
@@ -55,3 +59,6 @@ rand = "0.8.5"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 uuid = {version="1", features = ["v4"]}
+tokio = {version = "1", features = ["rt", "macros"]}
+wiremock = "0.5"
+serde_json = "1"

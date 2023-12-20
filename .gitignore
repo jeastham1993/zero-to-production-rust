@@ -1,6 +1,9 @@
 /target
 **/.idea/*
 
+**/.aws-sam/*
+**/samconfig.toml
+
 **/configuration/*
 **/copilot/*
 

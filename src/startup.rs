@@ -1,12 +1,13 @@
 use crate::adapters::postgres_subscriber_repository::PostgresSubscriberRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
-use crate::configuration::{DatabaseSettings, Settings};
+use crate::configuration::{DatabaseSettings, EmailClientSettings, Settings};
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::routes::health_check::health_check;
 use crate::routes::migrate::migrate_db;
 use crate::routes::subscriptions::subscribe;
+use crate::routes::subscriptions_confirm::confirm;
 use crate::telemetry::CustomLevelRootSpanBuilder;
 use actix_web::dev::{Server, Service};
 use actix_web::web::Data;
@@ -18,6 +19,8 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use tracing_actix_web::{RequestId, TracingLogger};
 
+pub struct ApplicationBaseUrl(pub String);
+
 pub struct Application {
     port: u16,
     server: Server,
@@ -27,20 +30,18 @@ impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
 
-        let email_adapter: Arc<dyn EmailClient + Send + Sync> = Arc::new(PostmarkEmailClient::new(
-            configuration.email_settings.base_url.clone(),
-            SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(),
-            configuration.email_settings.authorization_token.clone(),
-            configuration.email_settings.timeout(),
-        ));
-
         let listener = TcpListener::bind(format!(
             "{}:{}",
             configuration.application.host_name, configuration.application.application_port
         ))?;
 
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, connection_pool, email_adapter)?;
+        let server = run(
+            listener,
+            connection_pool,
+            configuration.email_settings,
+            configuration.application.base_url,
+        )?;
 
         Ok(Self { server, port })
     }
@@ -57,15 +58,26 @@ impl Application {
 pub fn run(
     listener: TcpListener,
     connection: PgPool,
-    email_client: Arc<dyn EmailClient + Send + Sync>,
+    email_settings: EmailClientSettings,
+    base_url: String,
 ) -> Result<Server, std::io::Error> {
     let repository = PostgresSubscriberRepository::new(connection);
+
+    let email_adapter = PostmarkEmailClient::new(
+        email_settings.base_url.clone(),
+        SubscriberEmail::parse(email_settings.sender_email.clone()).unwrap(),
+        email_settings.authorization_token.clone(),
+        email_settings.timeout(),
+    );
+
+    let base_url = Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
         let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(repository.clone());
         let store_data: Data<dyn SubscriberRepository> = Data::from(repo_arc);
-        let email_client_data: Data<dyn EmailClient + Send + Sync> =
-            Data::from(email_client.clone());
+
+        let email_client_arc: Arc<dyn EmailClient> = Arc::new(email_adapter.clone());
+        let email_client_data: Data<dyn EmailClient> = Data::from(email_client_arc.clone());
 
         App::new()
             .route("/health_check", web::get().to(health_check))
@@ -87,8 +99,10 @@ pub fn run(
             .wrap(TracingLogger::<CustomLevelRootSpanBuilder>::new())
             .route("/_migrate", web::get().to(migrate_db))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/subscriptions/confirm", web::get().to(confirm))
             .app_data(store_data)
             .app_data(email_client_data)
+            .app_data(base_url.clone())
     })
     .listen(listener)?
     .run();

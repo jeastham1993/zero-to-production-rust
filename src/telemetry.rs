@@ -45,7 +45,7 @@ where
             tracing_opentelemetry::layer()
                 .with_tracer(trace_provider.tracer(config.dataset_name.clone())),
         )
-        .with(LevelFilter::INFO)
+        .with(LevelFilter::DEBUG)
 }
 
 pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {

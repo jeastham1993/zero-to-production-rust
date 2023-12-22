@@ -1,11 +1,11 @@
 use actix_web::{web, HttpResponse};
 
-use sqlx::PgPool;
+use crate::domain::subscriber_repository::SubscriberRepository;
 
 #[tracing::instrument(name = "Database migration", skip(connection))]
 
-pub async fn migrate_db(connection: web::Data<PgPool>) -> HttpResponse {
-    match migrate_database(connection.get_ref()).await {
+pub async fn migrate_db(connection: web::Data<dyn SubscriberRepository>) -> HttpResponse {
+    match connection.apply_migrations().await {
         Ok(_) => {
             tracing::info!("New subscriber saved");
 
@@ -13,14 +13,4 @@ pub async fn migrate_db(connection: web::Data<PgPool>) -> HttpResponse {
         }
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
-}
-
-#[tracing::instrument(name = "Executing migration", skip(connection))]
-pub async fn migrate_database(connection: &PgPool) -> Result<(), sqlx::Error> {
-    sqlx::migrate!("./migrations")
-        .run(connection)
-        .await
-        .expect("Failed to migrate database");
-
-    Ok(())
 }

@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use reqwest::Client;
 use secrecy::{ExposeSecret, Secret};
 use std::time::Duration;
+use tracing::log::info;
 
+#[derive(Clone, Debug)]
 pub struct PostmarkEmailClient {
     http_client: Client,
     base_url: String,
@@ -30,9 +32,15 @@ impl PostmarkEmailClient {
 
 #[async_trait]
 impl EmailClient for PostmarkEmailClient {
+    #[tracing::instrument(
+    name = "Sending email to",
+    skip(recipient, subject, html_content, text_content),
+    fields(
+    subscriber_email = %recipient.as_ref(),)
+    )]
     async fn send_email_to(
         &self,
-        recipient: SubscriberEmail,
+        recipient: &SubscriberEmail,
         subject: &str,
         html_content: &str,
         text_content: &str,
@@ -45,9 +53,7 @@ impl EmailClient for PostmarkEmailClient {
             html_body: html_content,
             text_body: text_content,
         };
-
-        let _ = self
-            .http_client
+        self.http_client
             .post(&url)
             .header(
                 "X-Postmark-Server-Token",
@@ -110,7 +116,7 @@ mod tests {
         let content: String = Paragraph(1..10).fake();
 
         let outcome = email_client
-            .send_email_to(subscriber_email, &subject, &content, &content)
+            .send_email_to(&subscriber_email, &subject, &content, &content)
             .await;
 
         assert_ok!(outcome);
@@ -138,7 +144,7 @@ mod tests {
         let content: String = Paragraph(1..10).fake();
 
         let outcome = email_client
-            .send_email_to(subscriber_email, &subject, &content, &content)
+            .send_email_to(&subscriber_email, &subject, &content, &content)
             .await;
 
         assert_err!(outcome);
@@ -152,7 +158,7 @@ mod tests {
             mock_server.uri(),
             sender,
             Secret::new(String::from("")),
-            Duration::from_millis(10000),
+            Duration::from_millis(3000),
         );
 
         Mock::given(any())
@@ -166,7 +172,7 @@ mod tests {
         let content: String = Paragraph(1..10).fake();
 
         let outcome = email_client
-            .send_email_to(subscriber_email, &subject, &content, &content)
+            .send_email_to(&subscriber_email, &subject, &content, &content)
             .await;
 
         assert_err!(outcome);

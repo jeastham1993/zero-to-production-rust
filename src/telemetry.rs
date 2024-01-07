@@ -2,15 +2,12 @@ use crate::configuration::TelemetrySettings;
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::Error;
-use opentelemetry::sdk::trace::Config;
-use opentelemetry::sdk::Resource;
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry::{
-    global,
-    sdk::{propagation::TraceContextPropagator, trace::TracerProvider},
-    KeyValue,
-};
+use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::{Config, TracerProvider};
+use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use tracing::subscriber::set_global_default;
@@ -83,7 +80,7 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
             SpanExporterBuilder::Http(span_exporter)
                 .build_span_exporter()
                 .unwrap(),
-            opentelemetry::runtime::Tokio,
+            runtime::Tokio,
         )
         .build()
 }

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use opentelemetry::sdk::trace::TracerProvider;
-use opentelemetry::trace::noop::NoopSpanExporter;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tracing::log::info;
@@ -13,35 +12,36 @@ use zero2prod::domain::subscriber_email::SubscriberEmail;
 use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
+// Ensure that the `tracing` stack is only initialised once using `once_cell`
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let mut configuration = get_configuration().expect("Failed to read configuration");
-    let default_filter = "info".to_string();
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
-    configuration.telemetry.dataset_name = format!("test-{}", configuration.telemetry.dataset_name);
 
-    let default_trace_provider = TracerProvider::builder()
-        .with_simple_exporter(NoopSpanExporter::default())
+    // Create a new trace pipeline that prints to stdout
+    let provider = TracerProvider::builder()
+        .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
         .build();
 
     if std::env::var("TEST_LOG").is_ok() {
         let subscriber = get_subscriber(
             subscriber_name,
-            default_filter,
+            default_filter_level,
             std::io::stdout,
             &configuration.telemetry,
-            &default_trace_provider,
+            &provider,
         );
         init_subscriber(subscriber);
     } else {
         let subscriber = get_subscriber(
             subscriber_name,
-            default_filter,
+            default_filter_level,
             std::io::sink,
             &configuration.telemetry,
-            &default_trace_provider,
+            &provider,
         );
         init_subscriber(subscriber);
-    }
+    };
 });
 
 /// Confirmation links embedded in the request to the email API.

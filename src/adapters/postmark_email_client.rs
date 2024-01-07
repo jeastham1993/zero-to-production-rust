@@ -61,8 +61,17 @@ impl EmailClient for PostmarkEmailClient {
             )
             .json(&request_body)
             .send()
-            .await?
-            .error_for_status()?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to send email: {:?}", e);
+                e
+            })?
+            .error_for_status()
+            .map_err(|e| {
+                tracing::error!("Failed to send email: {:?}", e);
+                e
+            })?;
+
         Ok(())
     }
 }

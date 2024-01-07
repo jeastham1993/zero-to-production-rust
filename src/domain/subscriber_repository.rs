@@ -1,6 +1,19 @@
 use crate::domain::new_subscriber::NewSubscriber;
+use actix_web::ResponseError;
 use async_trait::async_trait;
-use sqlx::{Error, PgPool, Postgres, Transaction};
+use std::fmt::Formatter;
+
+#[derive(Debug)]
+pub struct StoreTokenError(pub(crate) sqlx::Error);
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error encountered while trying to store a subscription token"
+        )
+    }
+}
 
 #[async_trait]
 pub trait SubscriberRepository {
@@ -13,7 +26,7 @@ pub trait SubscriberRepository {
         &self,
         subscriber_id: String,
         subscription_token: &str,
-    ) -> Result<(), sqlx::Error>;
+    ) -> Result<(), StoreTokenError>;
 
     async fn get_subscriber_id_from_token(
         &self,

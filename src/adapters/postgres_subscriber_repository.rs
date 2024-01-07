@@ -1,11 +1,14 @@
 use crate::domain::new_subscriber::NewSubscriber;
-use crate::domain::subscriber_repository::SubscriberRepository;
+use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
+use actix_web::ResponseError;
 use async_trait::async_trait;
 use chrono::Utc;
 use rand::random;
 use sqlx::{Error, Executor, PgPool, Postgres, Transaction};
 use std::time::{SystemTime, UNIX_EPOCH};
 use ulid_rs::Ulid;
+
+impl ResponseError for StoreTokenError {}
 
 #[derive(Debug, Clone)]
 pub struct PostgresSubscriberRepository {
@@ -61,7 +64,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
         &self,
         subscriber_id: String,
         subscription_token: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), StoreTokenError> {
         sqlx::query!(
             r#"
     INSERT INTO subscription_tokens (subscription_token, subscriber_id)
@@ -74,7 +77,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute query: {:?}", e);
-            e
+            StoreTokenError(e)
         })?;
 
         Ok(())

@@ -15,23 +15,25 @@ tokio = {version = "1", features = ["macros", "rt-multi-thread"]}
 serde = {version = "1", features = ["derive"]}
 config = "0.13"
 ulid-rs = "0.1.0"
-chrono = {version="0.4.22", default-features = false, features = ["clock"]}
+chrono = {version="0.4.31", default-features = false, features = ["clock"]}
 tracing = "0.1"
 tracing-subscriber ={version="0.3", features = ["registry", "env-filter", "std"]}
 tracing-bunyan-formatter = "0.3"
 tracing-log = "0.2"
-tracing-actix-web = { version="0.7", features = ["opentelemetry_0_17"] }
-tracing-opentelemetry = "0.17"
+tracing-actix-web = { version = "0.7.9", features = ["opentelemetry_0_21"] }
+tracing-opentelemetry = { version="0.22", features = ["tracing-log", "async-trait", "default"] }
 tonic = "0.10.2"
 secrecy = { version = "0.8", features = ["serde"] }
-opentelemetry = { version = "0.17.0", features = ["rt-tokio"] }
+opentelemetry = { version = "0.21.0", features = ["trace"] }
 # Updating to 0.11 requires protoc installed but 0.10 fortunately does not
-opentelemetry-otlp = { version = "0.10", features = ["http-proto", "reqwest-client"] }
+opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
 opentelemetry-semantic-conventions = "0.13.0"
+opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio", "rt-tokio-current-thread"] }
 unicode-segmentation = "1.10.1"
 validator = "0.16"
 rand = "0.8.5"
 async-trait = "0.1.74"
+opentelemetry-stdout = "0.2.0"
 
 [dependencies.sqlx]
 version = "0.7"

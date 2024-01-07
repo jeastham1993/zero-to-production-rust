@@ -8,7 +8,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     let tracer = init_tracer(&configuration.telemetry);
     let subscriber = get_subscriber(
-        "zero2prod".into(),
+        configuration.telemetry.dataset_name.clone(),
         "info".into(),
         std::io::stdout,
         &configuration.telemetry,

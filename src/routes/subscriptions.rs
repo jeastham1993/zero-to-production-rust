@@ -1,9 +1,9 @@
 use crate::domain::email_client::EmailClient;
 #[allow(unused_imports)]
 use crate::domain::new_subscriber::NewSubscriber;
-use crate::domain::subscriber_repository::SubscriberRepository;
+use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
 use crate::startup::ApplicationBaseUrl;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpResponse, ResponseError};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{Error, Postgres, Transaction};
@@ -47,19 +47,24 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(
+    match send_confirmation_email(
         email_client.get_ref(),
         new_subscriber,
         &subscription_token,
         &base_url.0,
     )
     .await
-    .is_err()
     {
-        return HttpResponse::InternalServerError().finish();
-    }
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(err) => {
+            let error_message = err.to_string();
+            println!("{}", error_message);
 
-    HttpResponse::Ok().finish()
+            tracing::error_span!("Error");
+
+            HttpResponse::InternalServerError().finish()
+        }
+    }
 }
 
 #[tracing::instrument(

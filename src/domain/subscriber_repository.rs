@@ -3,8 +3,19 @@ use actix_web::ResponseError;
 use async_trait::async_trait;
 use std::fmt::Formatter;
 
-#[derive(Debug)]
 pub struct StoreTokenError(pub(crate) sqlx::Error);
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\nCaused by: \n\t{}", self, self.0)
+    }
+}
 
 impl std::fmt::Display for StoreTokenError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

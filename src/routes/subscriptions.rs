@@ -3,10 +3,36 @@ use crate::domain::email_client::EmailClient;
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
 use crate::startup::ApplicationBaseUrl;
+use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
+use anyhow::Context;
+use opentelemetry::trace::FutureExt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{Error, Postgres, Transaction};
+
+#[derive(thiserror::Error)]
+pub enum SubscribeError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl std::fmt::Debug for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for SubscribeError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -26,45 +52,31 @@ pub async fn subscribe(
     repo: web::Data<dyn SubscriberRepository>,
     email_client: web::Data<dyn EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
-) -> HttpResponse {
-    let new_subscriber: NewSubscriber = match form.0.try_into() {
-        Ok(subscriber) => subscriber,
-        Err(_) => return HttpResponse::BadRequest().finish(),
-    };
+) -> Result<HttpResponse, SubscribeError> {
+    let new_subscriber: NewSubscriber =
+        form.0.try_into().map_err(SubscribeError::ValidationError)?;
 
-    let subscriber_id = match repo.insert_subscriber(&new_subscriber).await {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
+    let subscriber_id = repo
+        .insert_subscriber(&new_subscriber)
+        .await
+        .context("Failed to insert new subscriber in the database.")?;
 
     let subscription_token = generate_subscription_token();
 
-    if repo
-        .store_token(subscriber_id, &subscription_token)
+    repo.store_token(subscriber_id, &subscription_token)
         .await
-        .is_err()
-    {
-        return HttpResponse::InternalServerError().finish();
-    }
+        .context("Failed to store token in the database")?;
 
-    match send_confirmation_email(
+    send_confirmation_email(
         email_client.get_ref(),
         new_subscriber,
         &subscription_token,
         &base_url.0,
     )
     .await
-    {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(err) => {
-            let error_message = err.to_string();
-            println!("{}", error_message);
+    .context("Failed to send confirmation email")?;
 
-            tracing::error_span!("Error");
-
-            HttpResponse::InternalServerError().finish()
-        }
-    }
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[tracing::instrument(
@@ -100,4 +112,17 @@ fn generate_subscription_token() -> String {
         .map(char::from)
         .take(25)
         .collect()
+}
+
+pub fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
 }

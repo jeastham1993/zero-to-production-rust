@@ -37,3 +37,9 @@ sqlx database create
 sqlx migrate run
 
 >&2 echo "Postgres migrated. Ready to go! :-)"
+
+>&2 echo "Starting Jaeger for local OpenTelemetry tracing"
+
+docker run -d -p6831:6831/udp -p6832:6832/udp -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
+
+>&2 echo "Jaeger started, access the UI at http://localhost:16686"

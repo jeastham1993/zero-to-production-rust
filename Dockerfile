@@ -43,7 +43,7 @@ RUN apt-get update && \
     apt-get -y install sudo
 
 # we need this to compile ring / open-ssl
-RUN apt-get install musl-tools clang llvm -y
+RUN apt-get install musl-tools clang llvm -y libssl-dev
 
 # Install target platform (Cross-Compilation) --> Needed for Scratch (or Alpine)
 RUN rustup target add aarch64-unknown-linux-musl

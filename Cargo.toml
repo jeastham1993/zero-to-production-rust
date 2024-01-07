@@ -29,11 +29,15 @@ opentelemetry = { version = "0.21.0", features = ["trace"] }
 opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
 opentelemetry-semantic-conventions = "0.13.0"
 opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio", "rt-tokio-current-thread"] }
+opentelemetry-jaeger = { version = "0.20", features = ["collector_client", "isahc_collector_client"] }
 unicode-segmentation = "1.10.1"
 validator = "0.16"
 rand = "0.8.5"
 async-trait = "0.1.74"
 opentelemetry-stdout = "0.2.0"
+thiserror = "1.0.53"
+anyhow = "1.0.78"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dependencies.sqlx]
 version = "0.7"

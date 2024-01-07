@@ -8,8 +8,6 @@ use sqlx::{Error, Executor, PgPool, Postgres, Transaction};
 use std::time::{SystemTime, UNIX_EPOCH};
 use ulid_rs::Ulid;
 
-impl ResponseError for StoreTokenError {}
-
 #[derive(Debug, Clone)]
 pub struct PostgresSubscriberRepository {
     pool: PgPool,

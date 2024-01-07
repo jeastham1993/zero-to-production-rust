@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use opentelemetry::sdk::trace::TracerProvider;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tracing::log::info;
@@ -10,39 +9,7 @@ use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::email_client::EmailClient;
 use zero2prod::domain::subscriber_email::SubscriberEmail;
 use zero2prod::startup::{get_connection_pool, Application};
-use zero2prod::telemetry::{get_subscriber, init_subscriber};
-
-// Ensure that the `tracing` stack is only initialised once using `once_cell`
-static TRACING: Lazy<()> = Lazy::new(|| {
-    let configuration = get_configuration().expect("Failed to read configuration");
-    let default_filter_level = "info".to_string();
-    let subscriber_name = "test".to_string();
-
-    // Create a new trace pipeline that prints to stdout
-    let provider = TracerProvider::builder()
-        .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
-        .build();
-
-    if std::env::var("TEST_LOG").is_ok() {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::stdout,
-            &configuration.telemetry,
-            &provider,
-        );
-        init_subscriber(subscriber);
-    } else {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::sink,
-            &configuration.telemetry,
-            &provider,
-        );
-        init_subscriber(subscriber);
-    };
-});
+use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
 
 /// Confirmation links embedded in the request to the email API.
 pub struct ConfirmationLinks {
@@ -94,8 +61,6 @@ impl TestApp {
 }
 
 pub async fn spawn_app() -> TestApp {
-    Lazy::force(&TRACING);
-
     // Launch a mock server to stand in for Postmark's API
     let email_server = MockServer::start().await;
 
@@ -108,11 +73,25 @@ pub async fn spawn_app() -> TestApp {
         c.application.application_port = 0;
         // Use the mock server as email API
         c.email_settings.base_url = email_server.uri();
+        c.telemetry.otlp_endpoint = "jaeger".to_string();
+        c.telemetry.dataset_name = "test-zero2prod".to_string();
+
         c
     };
 
     // Create and migrate the database
     configure_database(&configuration.database).await;
+
+    let tracer = init_tracer(&configuration.telemetry);
+    let subscriber = get_subscriber(
+        configuration.telemetry.dataset_name.clone(),
+        "info".into(),
+        std::io::stdout,
+        &configuration.telemetry,
+        &tracer,
+    );
+
+    init_subscriber(subscriber);
 
     // Launch the application as a background task
     let application = Application::build(configuration.clone())

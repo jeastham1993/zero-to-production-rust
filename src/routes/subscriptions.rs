@@ -1,6 +1,8 @@
 use crate::domain::email_client::EmailClient;
 #[allow(unused_imports)]
 use crate::domain::new_subscriber::NewSubscriber;
+use crate::domain::subscriber_email::SubscriberEmail;
+use crate::domain::subscriber_name::SubscriberName;
 use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
 use crate::startup::ApplicationBaseUrl;
 use actix_web::http::StatusCode;
@@ -10,6 +12,7 @@ use opentelemetry::trace::FutureExt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{Error, Postgres, Transaction};
+use tracing::log::info;
 
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
@@ -38,6 +41,19 @@ impl ResponseError for SubscribeError {
 pub struct FormData {
     pub email: String,
     pub name: String,
+}
+
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        info!("Parsing values {} - {}", value.email, value.name);
+
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+
+        Ok(NewSubscriber { email, name })
+    }
 }
 
 #[tracing::instrument(

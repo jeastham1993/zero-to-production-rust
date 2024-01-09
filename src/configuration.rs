@@ -10,6 +10,7 @@ pub struct Settings {
     pub telemetry: TelemetrySettings,
     pub application: ApplicationSettings,
     pub email_settings: EmailClientSettings,
+    pub redis_uri: Secret<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -17,6 +18,7 @@ pub struct ApplicationSettings {
     pub application_port: u16,
     pub host_name: String,
     pub base_url: String,
+    pub hmac_secret: Secret<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -106,6 +108,13 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .add_source(config::File::from(
             configuration_directory.join(environment_filename),
         ))
+        // Add in settings from environment variables (with a prefix of APP and '__' as separator)
+        // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
+        .add_source(
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()?;
 
     settings.try_deserialize::<Settings>()

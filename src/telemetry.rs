@@ -1,6 +1,7 @@
 use crate::configuration::TelemetrySettings;
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::rt::task::JoinHandle;
 use actix_web::Error;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::{global, KeyValue};
@@ -114,4 +115,13 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
     fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
         DefaultRootSpanBuilder::on_request_end(span, outcome);
     }
+}
+
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+    actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
 }

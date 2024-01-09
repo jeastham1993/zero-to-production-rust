@@ -1,9 +1,12 @@
-use crate::domain::new_subscriber::NewSubscriber;
+use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
+use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
 use actix_web::ResponseError;
+use anyhow::Context;
 use async_trait::async_trait;
 use chrono::Utc;
 use rand::random;
+use secrecy::Secret;
 use sqlx::{Error, Executor, PgPool, Postgres, Transaction};
 use std::time::{SystemTime, UNIX_EPOCH};
 use ulid_rs::Ulid;
@@ -104,6 +107,36 @@ impl SubscriberRepository for PostgresSubscriberRepository {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    #[tracing::instrument(name = "Get confirmed subscribers", skip())]
+    async fn get_confirmed_subscribers(
+        &self,
+    ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
+        struct Row {
+            email: String,
+        }
+
+        let rows = sqlx::query_as!(
+            Row,
+            r#"
+            SELECT email
+            FROM subscriptions
+            WHERE status = 'confirmed'
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let confirmed_subscribers = rows
+            .into_iter()
+            .map(|r| match SubscriberEmail::parse(r.email) {
+                Ok(email) => Ok(ConfirmedSubscriber { email }),
+                Err(error) => Err(anyhow::anyhow!(error)),
+            })
+            .collect();
+
+        Ok(confirmed_subscribers)
     }
 
     async fn apply_migrations(&self) -> Result<(), Error> {

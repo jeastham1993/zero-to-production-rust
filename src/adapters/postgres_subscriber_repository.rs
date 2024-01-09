@@ -1,13 +1,12 @@
 use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
-use actix_web::ResponseError;
-use anyhow::Context;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use rand::random;
-use secrecy::Secret;
-use sqlx::{Error, Executor, PgPool, Postgres, Transaction};
+
+use sqlx::{Error, PgPool};
 use std::time::{SystemTime, UNIX_EPOCH};
 use ulid_rs::Ulid;
 

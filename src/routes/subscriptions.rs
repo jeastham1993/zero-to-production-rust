@@ -3,15 +3,15 @@ use crate::domain::email_client::EmailClient;
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
-use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
+use crate::domain::subscriber_repository::{SubscriberRepository};
 use crate::startup::ApplicationBaseUrl;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
-use opentelemetry::trace::FutureExt;
+
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use sqlx::{Error, Postgres, Transaction};
+
 use tracing::log::info;
 
 #[derive(thiserror::Error)]

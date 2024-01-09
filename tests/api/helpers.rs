@@ -1,7 +1,7 @@
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
+
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tracing::log::info;
@@ -236,7 +236,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database");
 
-    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
+    let connection_pool = PgPool::connect(config.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
 

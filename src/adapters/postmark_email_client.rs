@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use secrecy::{ExposeSecret, Secret};
 use std::time::Duration;
-use tracing::log::info;
+
 
 #[derive(Clone, Debug)]
 pub struct PostmarkEmailClient {

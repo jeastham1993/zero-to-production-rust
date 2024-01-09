@@ -133,8 +133,8 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
         links[0].as_str().to_owned()
     };
 
-    let html_link = get_link(&body["HtmlBody"].as_str().unwrap());
-    let text_link = get_link(&body["TextBody"].as_str().unwrap());
+    let html_link = get_link(body["HtmlBody"].as_str().unwrap());
+    let text_link = get_link(body["TextBody"].as_str().unwrap());
 
     assert_eq!(text_link, html_link);
 }

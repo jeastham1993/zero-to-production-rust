@@ -1,7 +1,7 @@
 use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
-use actix_web::ResponseError;
+
 use async_trait::async_trait;
-use secrecy::Secret;
+
 use std::fmt::Formatter;
 
 pub struct StoreTokenError(pub(crate) sqlx::Error);

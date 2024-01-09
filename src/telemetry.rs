@@ -11,7 +11,7 @@ use opentelemetry_sdk::trace::{config, Config, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
-use std::panic::panic_any;
+
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Span, Subscriber};
 use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};

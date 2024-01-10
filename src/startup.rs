@@ -1,7 +1,7 @@
 use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
-use crate::adapters::postgres_subscriber_repository::PostgresSubscriberRepository;
+use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
-use crate::authentication::reject_anonymous_users;
+use crate::authentication::{reject_anonymous_users, UserRepository};
 use crate::configuration::{DatabaseSettings, EmailClientSettings, Settings};
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
@@ -23,12 +23,8 @@ use actix_web_lab::middleware::from_fn;
 use aws_config::environment::EnvironmentVariableCredentialsProvider;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
-use aws_sdk_dynamodb::Client;
-use core::panic;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
-use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
 use std::net::TcpListener;
 use std::sync::Arc;
 use tracing_actix_web::{RequestId, TracingLogger};
@@ -81,7 +77,6 @@ async fn run(
     let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
     let message_framework = FlashMessagesFramework::builder(message_store).build();
-    println!("{}", &redis_uri.expose_secret());
 
     let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
 
@@ -102,16 +97,17 @@ async fn run(
             .endpoint_url("http://localhost:8000".to_string())
             .build();
 
-        let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf);
+        let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
         let dynamo_db_repo =
             DynamoDbSubscriberRepository::new(dynamodb_client, db_settings.database_name.clone());
+        let user_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
+        let user_repo = DynamoDbUserRepository::new(user_client, db_settings.database_name.clone());
 
-        let connection = get_connection_pool(&db_settings);
-        let repository = PostgresSubscriberRepository::new(connection.clone());
-        let db_pool = Data::new(connection.clone());
-
-        let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(repository.clone());
+        let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(dynamo_db_repo.clone());
         let store_data: Data<dyn SubscriberRepository> = Data::from(repo_arc);
+
+        let user_repo_arc: Arc<dyn UserRepository> = Arc::new(user_repo.clone());
+        let user_repo_data: Data<dyn UserRepository> = Data::from(user_repo_arc);
 
         let email_client_arc: Arc<dyn EmailClient> = Arc::new(email_adapter.clone());
         let email_client_data: Data<dyn EmailClient> = Data::from(email_client_arc.clone());
@@ -156,8 +152,8 @@ async fn run(
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
             .route("/util/_migrate", web::get().to(migrate_db))
-            .app_data(db_pool)
             .app_data(store_data)
+            .app_data(user_repo_data)
             .app_data(email_client_data)
             .app_data(base_url.clone())
             .app_data(Data::new(HmacSecret(hmac_secret.clone())))
@@ -172,10 +168,6 @@ pub fn make_region_provider(region: Option<String>) -> RegionProviderChain {
     RegionProviderChain::first_try(region.map(Region::new))
         .or_default_provider()
         .or_else(Region::new("us-east-1"))
-}
-
-pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
-    PgPoolOptions::new().connect_lazy_with(configuration.with_db())
 }
 
 #[derive(Clone)]

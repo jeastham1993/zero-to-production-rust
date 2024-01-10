@@ -1,10 +1,8 @@
-use crate::authentication::{validate_credentials, AuthError, Credentials, UserId};
-use crate::routes::admin::dashboard::get_username;
+use crate::authentication::{validate_credentials, AuthError, Credentials, UserId, UserRepository};
 use crate::utils::{e500, see_other};
 use actix_web::{web, HttpResponse};
 use actix_web_flash_messages::FlashMessage;
 use secrecy::{ExposeSecret, Secret};
-use sqlx::PgPool;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -15,7 +13,7 @@ pub struct FormData {
 
 pub async fn change_password(
     form: web::Form<FormData>,
-    pool: web::Data<PgPool>,
+    user_repo: web::Data<dyn UserRepository>,
     user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let user_id = user_id.into_inner();
@@ -26,12 +24,11 @@ pub async fn change_password(
         .send();
         return Ok(see_other("/admin/password"));
     }
-    let username = get_username(*user_id, &pool).await.map_err(e500)?;
     let credentials = Credentials {
-        username,
+        username: user_id.as_string().clone(),
         password: form.0.current_password,
     };
-    if let Err(e) = validate_credentials(credentials, &pool).await {
+    if let Err(e) = validate_credentials(credentials, user_repo.get_ref()).await {
         return match e {
             AuthError::InvalidCredentials(_) => {
                 FlashMessage::error("The current password is incorrect.").send();
@@ -40,7 +37,9 @@ pub async fn change_password(
             AuthError::UnexpectedError(_) => Err(e500(e)),
         };
     }
-    crate::authentication::change_password(*user_id, form.0.new_password, &pool)
+
+    user_repo
+        .change_password(&user_id.as_string(), form.0.new_password)
         .await
         .map_err(e500)?;
     FlashMessage::error("Your password has been changed.").send();

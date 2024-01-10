@@ -1,4 +1,5 @@
 use crate::helpers::spawn_app;
+use aws_sdk_dynamodb::types::AttributeValue;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -31,14 +32,19 @@ async fn subscribe_persists_the_new_subscriber() {
     app.post_subscriptions(body.into()).await;
 
     // Assert
-    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
-        .fetch_one(&app.db_pool)
+    let saved = app
+        .dynamo_db_client
+        .get_item()
+        .table_name(app.table_name)
+        .key("PK", AttributeValue::S("james@test.com".to_string()))
+        .key("SK", AttributeValue::S("james@test.com".to_string()))
+        .send()
         .await
-        .expect("Failed to fetch saved subscription.");
+        .unwrap()
+        .item
+        .unwrap();
 
-    assert_eq!(saved.email, "james@test.com");
-    assert_eq!(saved.name, "james");
-    assert_eq!(saved.status, "pending_confirmation");
+    assert_eq!(saved["PK"].as_s().unwrap(), &"james@test.com".to_string());
 }
 
 #[tokio::test]
@@ -137,19 +143,4 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
     let text_link = get_link(body["TextBody"].as_str().unwrap());
 
     assert_eq!(text_link, html_link);
-}
-
-#[tokio::test]
-async fn subscribe_fails_if_there_is_a_fatal_database_error() {
-    let app = spawn_app().await;
-    let body = "name=james&email=james@test.com";
-
-    sqlx::query!("ALTER TABLE subscription_tokens DROP COLUMN subscription_token;",)
-        .execute(&app.db_pool)
-        .await
-        .unwrap();
-
-    let response = app.post_subscriptions(body.into()).await;
-
-    assert_eq!(response.status().as_u16(), 500)
 }

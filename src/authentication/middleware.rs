@@ -6,10 +6,9 @@ use actix_web::error::InternalError;
 use actix_web::{FromRequest, HttpMessage};
 use actix_web_lab::middleware::Next;
 use std::ops::Deref;
-use uuid::Uuid;
 
-#[derive(Copy, Clone, Debug)]
-pub struct UserId(Uuid);
+#[derive(Clone, Debug)]
+pub struct UserId(String);
 
 impl std::fmt::Display for UserId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -17,11 +16,9 @@ impl std::fmt::Display for UserId {
     }
 }
 
-impl Deref for UserId {
-    type Target = Uuid;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl UserId {
+    pub fn as_string(&self) -> String {
+        self.0.clone()
     }
 }
 

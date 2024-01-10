@@ -48,18 +48,6 @@ actix-web-lab = "0.20"
 aws-sdk-dynamodb = "1"
 aws-config = "1"
 
-[dependencies.sqlx]
-version = "0.7"
-default-features = false
-features = [
-    "runtime-tokio-rustls",
-    "macros",
-    "postgres",
-    "uuid",
-    "chrono",
-    "migrate"
-]
-
 [dependencies.reqwest]
 version = "0.11"
 default-features = false

@@ -1,16 +1,23 @@
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use async_trait::async_trait;
+use aws_config::environment::EnvironmentVariableCredentialsProvider;
+use aws_config::{BehaviorVersion, Region};
+use aws_sdk_dynamodb::types::ScalarAttributeType::S;
+use aws_sdk_dynamodb::types::{
+    AttributeDefinition, AttributeValue, BillingMode, GlobalSecondaryIndex, KeySchemaElement,
+    KeyType, Projection, ProjectionType,
+};
+use aws_sdk_dynamodb::Client;
 
 use secrecy::ExposeSecret;
-use sqlx::{Connection, Executor, PgConnection, PgPool};
 use tracing::log::info;
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::email_client::EmailClient;
 use zero2prod::domain::subscriber_email::SubscriberEmail;
-use zero2prod::startup::{get_connection_pool, Application};
+use zero2prod::startup::Application;
 use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
 
 /// Confirmation links embedded in the request to the email API.
@@ -22,10 +29,11 @@ pub struct ConfirmationLinks {
 pub struct TestApp {
     pub address: String,
     pub port: u16,
-    pub db_pool: PgPool,
     pub email_server: MockServer,
     pub test_user: TestUser,
     pub api_client: reqwest::Client,
+    pub dynamo_db_client: aws_sdk_dynamodb::Client,
+    pub table_name: String,
 }
 
 impl TestApp {
@@ -180,12 +188,11 @@ pub async fn spawn_app() -> TestApp {
         c.email_settings.base_url = email_server.uri();
         c.telemetry.otlp_endpoint = "jaeger".to_string();
         c.telemetry.dataset_name = "test-zero2prod".to_string();
-
         c
     };
 
     // Create and migrate the database
-    configure_database(&configuration.database).await;
+    let dynamo_db_client = configure_database(&configuration.database).await;
 
     let tracer = init_tracer(&configuration.telemetry);
     let subscriber = get_subscriber(
@@ -213,44 +220,111 @@ pub async fn spawn_app() -> TestApp {
 
     let test_app = TestApp {
         address: format!("http://localhost:{}", application_port),
-        db_pool: get_connection_pool(&configuration.database),
         email_server,
         port: application_port,
         test_user: TestUser::generate(),
         api_client: client,
+        dynamo_db_client: dynamo_db_client.clone(),
+        table_name: configuration.database.database_name.clone(),
     };
 
-    test_app.test_user.store(&test_app.db_pool).await;
+    test_app
+        .test_user
+        .store(&dynamo_db_client, &configuration.database.database_name)
+        .await;
 
     test_app
 }
 
-pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    let connection_string = config.connection_string_without_db();
+pub async fn configure_database(config: &DatabaseSettings) -> Client {
+    let conf = aws_sdk_dynamodb::Config::builder()
+        .behavior_version(BehaviorVersion::v2023_11_09())
+        .credentials_provider(EnvironmentVariableCredentialsProvider::new())
+        .region(Region::new("us-east-1"))
+        .endpoint_url("http://localhost:8000".to_string())
+        .build();
 
-    let mut connection = PgConnection::connect(connection_string.expose_secret())
+    let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf);
+
+    let create_table = dynamodb_client
+        .create_table()
+        .table_name(&config.database_name)
+        .billing_mode(BillingMode::PayPerRequest)
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("PK")
+                .attribute_type(S)
+                .build()
+                .unwrap(),
+        )
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("SK")
+                .attribute_type(S)
+                .build()
+                .unwrap(),
+        )
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("GSI1PK")
+                .attribute_type(S)
+                .build()
+                .unwrap(),
+        )
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("GSI1SK")
+                .attribute_type(S)
+                .build()
+                .unwrap(),
+        )
+        .key_schema(
+            KeySchemaElement::builder()
+                .attribute_name("PK")
+                .key_type(KeyType::Hash)
+                .build()
+                .unwrap(),
+        )
+        .key_schema(
+            KeySchemaElement::builder()
+                .attribute_name("SK")
+                .key_type(KeyType::Range)
+                .build()
+                .unwrap(),
+        )
+        .global_secondary_indexes(
+            GlobalSecondaryIndex::builder()
+                .index_name("GSI1")
+                .key_schema(
+                    KeySchemaElement::builder()
+                        .attribute_name("GSI1PK")
+                        .key_type(KeyType::Hash)
+                        .build()
+                        .unwrap(),
+                )
+                .key_schema(
+                    KeySchemaElement::builder()
+                        .attribute_name("GSI1SK")
+                        .key_type(KeyType::Range)
+                        .build()
+                        .unwrap(),
+                )
+                .projection(
+                    Projection::builder()
+                        .projection_type(ProjectionType::All)
+                        .build(),
+                )
+                .build()
+                .unwrap(),
+        )
+        .send()
         .await
-        .expect("Failed to connect to postgres");
+        .unwrap();
 
-    connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
-        .await
-        .expect("Failed to create database");
-
-    let connection_pool = PgPool::connect(config.connection_string().expose_secret())
-        .await
-        .expect("Failed to connect to Postgres");
-
-    sqlx::migrate!("./migrations")
-        .run(&connection_pool)
-        .await
-        .expect("Failed to migrate database");
-
-    connection_pool
+    dynamodb_client
 }
 
 pub struct TestUser {
-    user_id: Uuid,
     pub username: String,
     pub password: String,
 }
@@ -258,7 +332,6 @@ pub struct TestUser {
 impl TestUser {
     pub fn generate() -> Self {
         Self {
-            user_id: Uuid::new_v4(),
             username: Uuid::new_v4().to_string(),
             password: Uuid::new_v4().to_string(),
         }
@@ -272,7 +345,7 @@ impl TestUser {
         .await;
     }
 
-    async fn store(&self, pool: &PgPool) {
+    async fn store(&self, client: &Client, table_name: &str) {
         let salt = SaltString::generate(&mut rand::thread_rng());
         // Match production parameters
         let password_hash = Argon2::new(
@@ -284,16 +357,15 @@ impl TestUser {
         .unwrap()
         .to_string();
 
-        sqlx::query!(
-            "INSERT INTO users (user_id, username, password_hash)
-            VALUES ($1, $2, $3)",
-            self.user_id,
-            self.username,
-            password_hash,
-        )
-        .execute(pool)
-        .await
-        .expect("Failed to store test user.");
+        let _put_res = client
+            .put_item()
+            .table_name(table_name)
+            .item("PK", AttributeValue::S(self.username.to_string()))
+            .item("SK", AttributeValue::S("CREDENTIALS".to_string()))
+            .item("password_hash", AttributeValue::S(password_hash))
+            .send()
+            .await
+            .expect("Failure creating test user");
     }
 }
 

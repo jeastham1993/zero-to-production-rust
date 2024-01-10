@@ -1,4 +1,5 @@
 use crate::helpers::spawn_app;
+use aws_sdk_dynamodb::types::AttributeValue;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -30,6 +31,7 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
 
     app.post_subscriptions(body.into()).await;
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
+
     let confirmation_links = app.get_confirmation_links(email_request);
 
     // Act
@@ -63,12 +65,18 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber() {
         .unwrap();
 
     // Assert
-    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
-        .fetch_one(&app.db_pool)
+    let saved = app
+        .dynamo_db_client
+        .get_item()
+        .table_name(app.table_name)
+        .key("PK", AttributeValue::S("james@test.com".to_string()))
+        .key("SK", AttributeValue::S("james@test.com".to_string()))
+        .send()
         .await
-        .expect("Failed to fetch saved subscription.");
+        .unwrap()
+        .item
+        .unwrap();
 
-    assert_eq!(saved.email, "james@test.com");
-    assert_eq!(saved.name, "james");
-    assert_eq!(saved.status, "confirmed");
+    assert_eq!(saved["PK"].as_s().unwrap(), &"james@test.com".to_string());
+    assert_eq!(saved["GSI1PK"].as_s().unwrap(), &"confirmed".to_string());
 }

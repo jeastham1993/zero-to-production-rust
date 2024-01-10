@@ -1,12 +1,11 @@
+use crate::authentication::UserRepository;
 use actix_web::{web, HttpResponse};
 
-use crate::domain::subscriber_repository::SubscriberRepository;
-
 #[tracing::instrument(name = "Database migration", skip(connection))]
-pub async fn migrate_db(connection: web::Data<dyn SubscriberRepository>) -> HttpResponse {
-    match connection.apply_migrations().await {
+pub async fn migrate_db(connection: web::Data<dyn UserRepository>) -> HttpResponse {
+    match connection.seed().await {
         Ok(_) => {
-            tracing::info!("New subscriber saved");
+            tracing::info!("Database seeded successfully");
 
             HttpResponse::Ok().finish()
         }

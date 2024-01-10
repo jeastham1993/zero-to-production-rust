@@ -1,7 +1,6 @@
 use reqwest::Url;
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
-use sqlx::postgres::PgConnectOptions;
 use std::time::Duration;
 
 #[derive(Deserialize, Clone)]
@@ -44,48 +43,7 @@ impl EmailClientSettings {
 
 #[derive(Deserialize, Clone)]
 pub struct DatabaseSettings {
-    pub username: String,
-    pub password: Secret<String>,
-    pub port: u16,
-    pub host: String,
     pub database_name: String,
-}
-
-impl DatabaseSettings {
-    pub fn without_db(&self) -> PgConnectOptions {
-        PgConnectOptions::new()
-            .host(&self.host)
-            .username(&self.username)
-            .password(self.password.expose_secret())
-            .port(self.port)
-    }
-
-    pub fn with_db(&self) -> PgConnectOptions {
-        self.without_db().database(&self.database_name)
-    }
-
-    pub fn connection_string(&self) -> Secret<String> {
-        let db_url = format!(
-            "postgres://{}:{}/{}",
-            self.host, self.port, self.database_name
-        );
-
-        let mut uri = Url::parse(&db_url).unwrap();
-        let _ = uri.set_username(&self.username);
-        let _ = uri.set_password(Some(self.password.expose_secret()));
-
-        Secret::new(uri.to_string())
-    }
-
-    pub fn connection_string_without_db(&self) -> Secret<String> {
-        let db_url = format!("postgres://{}:{}", self.host, self.port);
-
-        let mut uri = Url::parse(&db_url).unwrap();
-        let _ = uri.set_username(&self.username);
-        let _ = uri.set_password(Some(self.password.expose_secret()));
-
-        Secret::new(uri.to_string())
-    }
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {

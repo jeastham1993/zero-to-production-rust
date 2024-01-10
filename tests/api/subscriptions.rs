@@ -37,7 +37,6 @@ async fn subscribe_persists_the_new_subscriber() {
         .get_item()
         .table_name(app.table_name)
         .key("PK", AttributeValue::S("james@test.com".to_string()))
-        .key("SK", AttributeValue::S("james@test.com".to_string()))
         .send()
         .await
         .unwrap()

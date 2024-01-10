@@ -3,7 +3,7 @@ use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
 use async_trait::async_trait;
 
 use crate::routes::error_chain_fmt;
-use std::fmt::Formatter;
+
 
 #[derive(thiserror::Error)]
 pub enum DatabaseError {

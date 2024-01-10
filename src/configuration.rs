@@ -1,5 +1,4 @@
-use reqwest::Url;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -44,6 +43,8 @@ impl EmailClientSettings {
 #[derive(Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub database_name: String,
+    pub auth_database_name: String,
+    pub use_local: bool
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {

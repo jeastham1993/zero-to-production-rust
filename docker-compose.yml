@@ -1,13 +1,8 @@
 services:
-  postgres:
-    image: postgres
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
     ports:
-      - 5432:5432
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: newsletter
-      DB_PORT: 5432
+      - 8000:8000
   redis:
     image: redis:7
     ports:
@@ -25,3 +20,7 @@ services:
       - 8080:8080
     environment:
       APP_REDIS_URI: redis://redis:6379
+      APP_DATABASE__USE_LOCAL: false
+      AWS_ACCESS_KEY_ID: AKIAW22GPLBZU3RNC67G
+      AWS_SECRET_ACCESS_KEY: localstack
+      AWS_REGION: us-east-1

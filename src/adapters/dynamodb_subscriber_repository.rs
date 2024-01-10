@@ -24,12 +24,11 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         &self,
         new_subscriber: &NewSubscriber,
     ) -> Result<String, anyhow::Error> {
-        let put_res = self
+        let _put_res = self
             .client
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(new_subscriber.email.to_string()))
-            .item("SK", AttributeValue::S(new_subscriber.email.to_string()))
             .condition_expression("attribute_not_exists(PK)".to_string())
             .send()
             .await
@@ -46,12 +45,15 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         subscriber_id: String,
         subscription_token: &str,
     ) -> Result<(), anyhow::Error> {
-        let put_res = self
+        let _put_res = self
             .client
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(subscription_token.to_string()))
-            .item("SK", AttributeValue::S(subscriber_id.to_string()))
+            .item(
+                "subscriber_id",
+                AttributeValue::S(subscriber_id.to_string()),
+            )
             .condition_expression("attribute_not_exists(PK)".to_string())
             .send()
             .await
@@ -83,7 +85,7 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
             } else {
                 let first_item = items.first().unwrap();
 
-                Ok(Some(first_item["SK"].as_s().unwrap().clone()))
+                Ok(Some(first_item["subscriber_id"].as_s().unwrap().clone()))
             }
         } else {
             Err(DatabaseError::TokenNotFoundError("Token not found".to_string()).into())
@@ -91,12 +93,11 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
     }
 
     async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), anyhow::Error> {
-        let put_res = self
+        let _put_res = self
             .client
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(subscriber_id.to_string()))
-            .item("SK", AttributeValue::S(subscriber_id.to_string()))
             .item("GSI1PK", AttributeValue::S("confirmed".to_string()))
             .item("GSI1SK", AttributeValue::S(subscriber_id.to_string()))
             .send()

@@ -10,7 +10,6 @@ use aws_sdk_dynamodb::types::{
 };
 use aws_sdk_dynamodb::Client;
 
-use secrecy::ExposeSecret;
 use tracing::log::info;
 use uuid::Uuid;
 use wiremock::MockServer;
@@ -180,8 +179,9 @@ pub async fn spawn_app() -> TestApp {
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         // Use a different database for each test case
-        //c.database.database_name = "newsletter".to_string();
         c.database.database_name = Uuid::new_v4().to_string();
+        c.database.auth_database_name = Uuid::new_v4().to_string();
+        c.database.use_local = true;
         // Use a random OS port
         c.application.application_port = 0;
         // Use the mock server as email API
@@ -230,7 +230,10 @@ pub async fn spawn_app() -> TestApp {
 
     test_app
         .test_user
-        .store(&dynamo_db_client, &configuration.database.database_name)
+        .store(
+            &dynamo_db_client,
+            &configuration.database.auth_database_name,
+        )
         .await;
 
     test_app
@@ -246,20 +249,13 @@ pub async fn configure_database(config: &DatabaseSettings) -> Client {
 
     let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf);
 
-    let create_table = dynamodb_client
+    let _create_table = dynamodb_client
         .create_table()
         .table_name(&config.database_name)
         .billing_mode(BillingMode::PayPerRequest)
         .attribute_definitions(
             AttributeDefinition::builder()
                 .attribute_name("PK")
-                .attribute_type(S)
-                .build()
-                .unwrap(),
-        )
-        .attribute_definitions(
-            AttributeDefinition::builder()
-                .attribute_name("SK")
                 .attribute_type(S)
                 .build()
                 .unwrap(),
@@ -285,13 +281,6 @@ pub async fn configure_database(config: &DatabaseSettings) -> Client {
                 .build()
                 .unwrap(),
         )
-        .key_schema(
-            KeySchemaElement::builder()
-                .attribute_name("SK")
-                .key_type(KeyType::Range)
-                .build()
-                .unwrap(),
-        )
         .global_secondary_indexes(
             GlobalSecondaryIndex::builder()
                 .index_name("GSI1")
@@ -314,6 +303,28 @@ pub async fn configure_database(config: &DatabaseSettings) -> Client {
                         .projection_type(ProjectionType::All)
                         .build(),
                 )
+                .build()
+                .unwrap(),
+        )
+        .send()
+        .await
+        .unwrap();
+
+    let _create_table = dynamodb_client
+        .create_table()
+        .table_name(&config.auth_database_name)
+        .billing_mode(BillingMode::PayPerRequest)
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("PK")
+                .attribute_type(S)
+                .build()
+                .unwrap(),
+        )
+        .key_schema(
+            KeySchemaElement::builder()
+                .attribute_name("PK")
+                .key_type(KeyType::Hash)
                 .build()
                 .unwrap(),
         )

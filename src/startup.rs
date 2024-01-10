@@ -20,9 +20,12 @@ use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
+use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::environment::EnvironmentVariableCredentialsProvider;
+use aws_config::meta::credentials::CredentialsProviderChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
+use aws_sdk_dynamodb::config::ProvideCredentials;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
@@ -87,21 +90,34 @@ async fn run(
         email_settings.timeout(),
     );
 
+    let region = make_region_provider().region().await.unwrap();
+    let credentials = DefaultCredentialsChain::builder()
+        .region(region.clone())
+        .build()
+        .await
+        .provide_credentials()
+        .await
+        .unwrap();
+
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
-        let conf = aws_sdk_dynamodb::Config::builder()
+        let conf_builder = aws_sdk_dynamodb::Config::builder()
             .behavior_version(BehaviorVersion::v2023_11_09())
-            .credentials_provider(EnvironmentVariableCredentialsProvider::new())
-            .region(Region::new("us-east-1"))
-            .endpoint_url("http://localhost:8000".to_string())
-            .build();
+            .credentials_provider(credentials.clone())
+            .region(region.clone());
+
+        let conf = match db_settings.use_local {
+            true => conf_builder.endpoint_url("http://localhost:8000").build(),
+            false => conf_builder.build(),
+        };
 
         let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
         let dynamo_db_repo =
             DynamoDbSubscriberRepository::new(dynamodb_client, db_settings.database_name.clone());
         let user_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
-        let user_repo = DynamoDbUserRepository::new(user_client, db_settings.database_name.clone());
+        let user_repo =
+            DynamoDbUserRepository::new(user_client, db_settings.auth_database_name.clone());
 
         let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(dynamo_db_repo.clone());
         let store_data: Data<dyn SubscriberRepository> = Data::from(repo_arc);
@@ -164,10 +180,8 @@ async fn run(
     Ok(server)
 }
 
-pub fn make_region_provider(region: Option<String>) -> RegionProviderChain {
-    RegionProviderChain::first_try(region.map(Region::new))
-        .or_default_provider()
-        .or_else(Region::new("us-east-1"))
+pub fn make_region_provider() -> RegionProviderChain {
+    RegionProviderChain::default_provider().or_else(Region::new("us-east-1"))
 }
 
 #[derive(Clone)]

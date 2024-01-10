@@ -1,5 +1,5 @@
 use crate::authentication::{compute_password_hash, UserAuthenticationError, UserRepository};
-use crate::routes::error_chain_fmt;
+
 use crate::telemetry::spawn_blocking_with_tracing;
 use anyhow::{Context, Error};
 use async_trait::async_trait;
@@ -31,7 +31,6 @@ impl UserRepository for DynamoDbUserRepository {
             .get_item()
             .table_name(&self.table_name)
             .key("PK", AttributeValue::S(username.to_string()))
-            .key("SK", AttributeValue::S("CREDENTIALS".to_string()))
             .send()
             .await
             .context("Failed to get user credentials")?;
@@ -62,7 +61,6 @@ impl UserRepository for DynamoDbUserRepository {
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(user_id.to_string()))
-            .item("SK", AttributeValue::S("CREDENTIALS".to_string()))
             .item(
                 "password_hash",
                 AttributeValue::S(password_hash.expose_secret().to_string()),
@@ -83,7 +81,6 @@ impl UserRepository for DynamoDbUserRepository {
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S("admin".to_string()))
-            .item("SK", AttributeValue::S("CREDENTIALS".to_string()))
             .item(
                 "password_hash",
                 AttributeValue::S("$argon2id$v=19$m=15000,t=2,p=1$94TDOx1pXBY0GzKpi774dQ$v9LyxFtOk2qYPI5AQNzut0D6H6/3bOurbCVbZqYD1aM".to_string()),

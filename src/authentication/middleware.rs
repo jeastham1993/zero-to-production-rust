@@ -5,7 +5,7 @@ use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::error::InternalError;
 use actix_web::{FromRequest, HttpMessage};
 use actix_web_lab::middleware::Next;
-use std::ops::Deref;
+
 
 #[derive(Clone, Debug)]
 pub struct UserId(String);

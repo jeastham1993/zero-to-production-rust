@@ -1,7 +1,7 @@
 use crate::session_state::TypedSession;
 use crate::utils::e500;
 use actix_web::http::header::LOCATION;
-use actix_web::{http::header::ContentType, web, HttpResponse};
+use actix_web::{http::header::ContentType, HttpResponse};
 
 pub async fn admin_dashboard(session: TypedSession) -> Result<HttpResponse, actix_web::Error> {
     let username = if let Some(user_id) = session.get_user_id().map_err(e500)? {

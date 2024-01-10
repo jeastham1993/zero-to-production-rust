@@ -15,10 +15,12 @@ docker run -d -p 8000:8000 amazon/dynamodb-local:latest
 
 >&2 echo "DynamoDB Local Started, creating table"
 
+sleep 2
+
 aws dynamodb create-table \
     --table-name newsletter \
-    --attribute-definitions AttributeName=PK,AttributeType=S AttributeName=SK,AttributeType=S AttributeName=GSI1PK,AttributeType=S AttributeName=GSI1SK,AttributeType=S  \
-    --key-schema AttributeName=PK,KeyType=HASH AttributeName=SK,KeyType=RANGE \
+    --attribute-definitions AttributeName=PK,AttributeType=S AttributeName=GSI1PK,AttributeType=S AttributeName=GSI1SK,AttributeType=S  \
+    --key-schema AttributeName=PK,KeyType=HASH \
     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
     --endpoint-url http://localhost:8000 \
     --region us-east-1 \
@@ -31,14 +33,22 @@ aws dynamodb create-table \
                         {\"AttributeName\":\"GSI1SK\",\"KeyType\":\"RANGE\"}
                     ],
                     \"Projection\": {
-                        \"ProjectionType\":\"ALL\"
+                        \"ProjectionType\":\"KEYS_ONLY\"
                     },
                     \"ProvisionedThroughput\": {
                         \"ReadCapacityUnits\": 5,
                         \"WriteCapacityUnits\": 5
                     }
                 }
-            ]"
+            ]" > create-result.json
+
+aws dynamodb create-table \
+    --table-name auth \
+    --attribute-definitions AttributeName=PK,AttributeType=S  \
+    --key-schema AttributeName=PK,KeyType=HASH \
+    --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
+    --endpoint-url http://localhost:8000 \
+    --region us-east-1  > auth-table-create-result.json
 
 sleep 2
 

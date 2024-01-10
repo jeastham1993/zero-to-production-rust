@@ -34,3 +34,42 @@ module "db" {
   backup_window           = "03:00-06:00"
   backup_retention_period = 0
 }
+
+resource "aws_dynamodb_table" "subscriptions-dynamodb-table" {
+  name           = "newsletter"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "PK"
+
+  attribute {
+    name = "PK"
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI1PK"
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI1SK"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "GSI1"
+    hash_key           = "GSI1PK"
+    range_key          = "GSI1SK"
+    projection_type    = "KEYS_ONLY"
+  }
+}
+
+resource "aws_dynamodb_table" "auth-dynamodb-table" {
+  name           = "auth"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "PK"
+
+  attribute {
+    name = "PK"
+    type = "S"
+  }
+}

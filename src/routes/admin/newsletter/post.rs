@@ -2,8 +2,8 @@ use crate::authentication::UserId;
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
-use crate::routes::{error_chain_fmt, ConfirmationError};
-use crate::utils::{e500, see_other};
+use crate::routes::{error_chain_fmt};
+use crate::utils::{see_other};
 use actix_web::http::StatusCode;
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse, ResponseError};
@@ -54,7 +54,7 @@ pub async fn publish_newsletter(
 
     tracing::info!(
         "There are {} confirmed subscribers",
-        subscribers.iter().count()
+        subscribers.len()
     );
 
     for subscriber in subscribers {

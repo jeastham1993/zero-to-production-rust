@@ -1759,6 +1759,7 @@ dependencies = [
  "rustls-native-certs",
  "tokio",
  "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -4240,11 +4241,13 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-dynamodb",
+ "aws-smithy-runtime",
  "base64 0.21.5",
  "chrono",
  "claims",
  "config",
  "fake",
+ "hyper-rustls",
  "linkify",
  "once_cell",
  "openssl",

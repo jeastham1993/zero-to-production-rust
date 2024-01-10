@@ -21,11 +21,10 @@ use actix_web_flash_messages::storage::CookieMessageStore;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
-use aws_config::environment::EnvironmentVariableCredentialsProvider;
-use aws_config::meta::credentials::CredentialsProviderChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_dynamodb::config::ProvideCredentials;
+use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
@@ -102,9 +101,18 @@ async fn run(
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
+        let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let hyper_client = HyperClientBuilder::new().build(https_connector);
+
         let conf_builder = aws_sdk_dynamodb::Config::builder()
             .behavior_version(BehaviorVersion::v2023_11_09())
             .credentials_provider(credentials.clone())
+            .http_client(hyper_client)
             .region(region.clone());
 
         let conf = match db_settings.use_local {

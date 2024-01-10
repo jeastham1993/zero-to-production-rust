@@ -47,6 +47,8 @@ actix-session = { version = "0.8", features = ["redis-rs-tls-session"] }
 actix-web-lab = "0.20"
 aws-sdk-dynamodb = "1"
 aws-config = "1"
+aws-smithy-runtime = "1"
+hyper-rustls = {version = "0.24.2", features=["webpki-roots"]}
 
 [dependencies.reqwest]
 version = "0.11"

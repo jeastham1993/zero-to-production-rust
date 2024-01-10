@@ -12,7 +12,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 RUN cargo build --release --bin zero2prod
 
-FROM amazonlinux:2 as runtime
+FROM amazonlinux:2023 as runtime
 WORKDIR /app
 
 RUN yum update ca-certificates

@@ -1,3 +1,4 @@
+use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
 use crate::adapters::postgres_subscriber_repository::PostgresSubscriberRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
 use crate::authentication::reject_anonymous_users;
@@ -19,6 +20,11 @@ use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
+use aws_config::environment::EnvironmentVariableCredentialsProvider;
+use aws_config::meta::region::RegionProviderChain;
+use aws_config::{BehaviorVersion, Region};
+use aws_sdk_dynamodb::Client;
+use core::panic;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use sqlx::postgres::PgPoolOptions;
@@ -75,6 +81,8 @@ async fn run(
     let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
     let message_framework = FlashMessagesFramework::builder(message_store).build();
+    println!("{}", &redis_uri.expose_secret());
+
     let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
 
     let email_adapter = PostmarkEmailClient::new(
@@ -87,6 +95,17 @@ async fn run(
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
     let server = HttpServer::new(move || {
+        let conf = aws_sdk_dynamodb::Config::builder()
+            .behavior_version(BehaviorVersion::v2023_11_09())
+            .credentials_provider(EnvironmentVariableCredentialsProvider::new())
+            .region(Region::new("us-east-1"))
+            .endpoint_url("http://localhost:8000".to_string())
+            .build();
+
+        let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf);
+        let dynamo_db_repo =
+            DynamoDbSubscriberRepository::new(dynamodb_client, db_settings.database_name.clone());
+
         let connection = get_connection_pool(&db_settings);
         let repository = PostgresSubscriberRepository::new(connection.clone());
         let db_pool = Data::new(connection.clone());
@@ -112,7 +131,6 @@ async fn run(
                     .route("/newsletters", web::post().to(publish_newsletter))
                     .route("/password", web::get().to(change_password_form))
                     .route("/password", web::post().to(change_password))
-                    .route("/_migrate", web::get().to(migrate_db))
                     .route("/logout", web::post().to(log_out)),
             )
             .wrap(TracingLogger::<CustomLevelRootSpanBuilder>::new())
@@ -137,6 +155,7 @@ async fn run(
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/newsletters", web::post().to(publish_newsletter))
+            .route("/util/_migrate", web::get().to(migrate_db))
             .app_data(db_pool)
             .app_data(store_data)
             .app_data(email_client_data)
@@ -147,6 +166,12 @@ async fn run(
     .run();
 
     Ok(server)
+}
+
+pub fn make_region_provider(region: Option<String>) -> RegionProviderChain {
+    RegionProviderChain::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-east-1"))
 }
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {

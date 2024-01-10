@@ -104,7 +104,9 @@ pub struct CustomLevelRootSpanBuilder;
 
 impl RootSpanBuilder for CustomLevelRootSpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
-        let level = if request.path() == "/health_check" {
+        let paths_to_skip = ["/health_check", "/default"];
+
+        let level = if paths_to_skip.contains(&request.path()) {
             Level::TRACE
         } else {
             Level::INFO

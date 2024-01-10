@@ -12,4 +12,5 @@ resource "aws_elasticache_cluster" "session_clustser" {
   engine_version       = "7.1"
   port                 = 6379
   subnet_group_name    = aws_elasticache_subnet_group.session_cluster_subnets.name
+  security_group_ids = [module.redis_security_group.security_group_id]
 }

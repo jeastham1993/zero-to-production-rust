@@ -1,6 +1,6 @@
 use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
 use crate::domain::subscriber_email::SubscriberEmail;
-use crate::domain::subscriber_repository::{StoreTokenError, SubscriberRepository};
+use crate::domain::subscriber_repository::{DatabaseError, StoreTokenError, SubscriberRepository};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -27,7 +27,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
     async fn insert_subscriber(
         &self,
         new_subscriber: &NewSubscriber,
-    ) -> Result<String, sqlx::Error> {
+    ) -> Result<String, anyhow::Error> {
         let unique_id = Ulid::new(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -64,7 +64,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
         &self,
         subscriber_id: String,
         subscription_token: &str,
-    ) -> Result<(), StoreTokenError> {
+    ) -> Result<(), anyhow::Error> {
         sqlx::query!(
             r#"
     INSERT INTO subscription_tokens (subscription_token, subscriber_id)
@@ -87,7 +87,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
     async fn get_subscriber_id_from_token(
         &self,
         subscription_token: &str,
-    ) -> Result<Option<String>, Error> {
+    ) -> Result<Option<String>, anyhow::Error> {
         let result = sqlx::query!(
             r#"SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $1"#,
             subscription_token,
@@ -98,7 +98,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
     }
 
     #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id))]
-    async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), sqlx::Error> {
+    async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), anyhow::Error> {
         sqlx::query!(
             r#"UPDATE subscriptions SET status = 'confirmed' WHERE id = $1"#,
             subscriber_id,
@@ -138,7 +138,7 @@ impl SubscriberRepository for PostgresSubscriberRepository {
         Ok(confirmed_subscribers)
     }
 
-    async fn apply_migrations(&self) -> Result<(), Error> {
+    async fn apply_migrations(&self) -> Result<(), anyhow::Error> {
         sqlx::migrate!("./migrations")
             .run(&self.pool)
             .await

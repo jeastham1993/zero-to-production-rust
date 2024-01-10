@@ -3,17 +3,23 @@
 <head>
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
     <title>Login</title>
+    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
 </head>
 <body>
-<form action="/login" method="post">
-    <label>Username
-        <input
-                type="text"
-                placeholder="Enter Username"
-                name="username"
-        >
-    </label>
-
+<div class="row">
+<form action="/login" method="post" class="col s12">
+    <div class="row">
+        <div class="input-field col s6">
+            <input
+                    type="text"
+                    placeholder="Enter Username"
+                    name="username"
+                    id="username"
+            />
+            <label for="username"></label>
+        </div>
+    </div>
     <label>Password
         <input
                 type="password"
@@ -24,5 +30,8 @@
 
     <button type="submit">Login</button>
 </form>
+</div>
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 </body>
 </html>

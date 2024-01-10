@@ -172,6 +172,7 @@ pub async fn spawn_app() -> TestApp {
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         // Use a different database for each test case
+        //c.database.database_name = "newsletter".to_string();
         c.database.database_name = Uuid::new_v4().to_string();
         // Use a random OS port
         c.application.application_port = 0;

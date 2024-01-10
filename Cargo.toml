@@ -45,6 +45,8 @@ argon2 = { version = "0.5", features = ["std"] }
 actix-web-flash-messages = { version = "0.4", features = ["cookies"] }
 actix-session = { version = "0.8", features = ["redis-rs-tls-session"] }
 actix-web-lab = "0.20"
+aws-sdk-dynamodb = "1"
+aws-config = "1"
 
 [dependencies.sqlx]
 version = "0.7"

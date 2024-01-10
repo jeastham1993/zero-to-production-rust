@@ -52,3 +52,23 @@ module "security_group" {
     },
   ]
 }
+
+module "redis_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 5.0"
+
+  name        = "redis-security-group"
+  description = "Complete REDIS example security group"
+  vpc_id      = module.vpc.vpc_id
+
+  # ingress
+  ingress_with_cidr_blocks = [
+    {
+      from_port   = 6379
+      to_port     = 6379
+      protocol    = "tcp"
+      description = "Redis access from within VPC"
+      cidr_blocks = module.vpc.vpc_cidr_block
+    },
+  ]
+}

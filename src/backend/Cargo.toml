@@ -1,0 +1,65 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aws_lambda_events = { version = "0.12.0", default-features = false, features = ["dynamodb"] }
+
+lambda_runtime = "0.8.3"
+
+tokio = {version = "1", features = ["macros", "rt-multi-thread", "macros"]}
+serde = {version = "1", features = ["derive"]}
+config = "0.13"
+ulid-rs = "0.1.0"
+chrono = {version="0.4.31", default-features = false, features = ["clock"]}
+tracing = "0.1"
+tracing-subscriber ={version="0.3", features = ["registry", "env-filter", "std", "fmt"]}
+tracing-bunyan-formatter = "0.3"
+tracing-log = "0.2"
+tracing-opentelemetry = { version="0.22", features = ["tracing-log", "async-trait", "default"] }
+tonic = "0.10.2"
+secrecy = { version = "0.8", features = ["serde"] }
+opentelemetry = { version = "0.21.0", features = ["trace"] }
+# Updating to 0.11 requires protoc installed but 0.10 fortunately does not
+opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
+opentelemetry-semantic-conventions = "0.13.0"
+opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio", "rt-tokio-current-thread"] }
+opentelemetry-jaeger = { version = "0.20", features = ["collector_client", "isahc_collector_client"] }
+unicode-segmentation = "1.10.1"
+validator = "0.16"
+rand = "0.8.5"
+opentelemetry-stdout = "0.2.0"
+thiserror = "1.0.53"
+anyhow = "1.0.78"
+openssl = { version = "0.10", features = ["vendored"] }
+serde_urlencoded = "0.7.1"
+serde_json = { version = "1" }
+base64 = "0.21.5"
+uuid = { version = "1", features = ["v4", "serde"] }
+argon2 = { version = "0.5", features = ["std"] }
+aws-sdk-dynamodb = "1"
+aws-config = "1"
+aws-smithy-runtime = "1"
+hyper = {version="1.1.0", features=["client"]}
+hyper-rustls = {version = "0.24.2", features=["webpki-roots"]}
+serde_dynamo = "4.2.13"
+
+[dependencies.reqwest]
+version = "0.11"
+default-features = false
+features = ["json", "rustls-tls", "cookies"]
+
+[dev-dependencies]
+reqwest = "0.11"
+once_cell = "1"
+claims = "0.7"
+fake = "2.6.1"
+rand = "0.8.5"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+uuid = {version="1", features = ["v4"]}
+tokio = {version = "1", features = ["rt", "macros"]}
+wiremock = "0.5"
+serde_json = "1"
+linkify = "0.10"

@@ -39,6 +39,8 @@ resource "aws_dynamodb_table" "subscriptions-dynamodb-table" {
   name           = "newsletter"
   billing_mode   = "PAY_PER_REQUEST"
   hash_key       = "PK"
+  stream_enabled = true
+  stream_view_type = "NEW_IMAGE"
 
   attribute {
     name = "PK"

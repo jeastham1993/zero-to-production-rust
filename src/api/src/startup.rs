@@ -81,8 +81,6 @@ async fn run(
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
     let message_framework = FlashMessagesFramework::builder(message_store).build();
 
-    // let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
-
     let dynamo_db_store = DynamoDbSessionStore::builder()
         .table_name(db_settings.auth_database_name.clone())
         .key_name("PK".to_string())

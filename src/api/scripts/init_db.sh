@@ -53,3 +53,9 @@ aws dynamodb create-table \
 sleep 2
 
 >&2 echo "Table created"
+
+>&2 echo "Setting dummy environment variables for DynamoDB Local"
+
+export AWS_ACCESS_KEY_ID=AKIAW22GPLBZ36234YRA
+export AWS_SECRET_ACCESS_KEY=local
+export AWS_REGION=us-east-1

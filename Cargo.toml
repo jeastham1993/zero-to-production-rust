@@ -39,6 +39,7 @@ thiserror = "1.0.53"
 anyhow = "1.0.78"
 openssl = { version = "0.10", features = ["vendored"] }
 serde_urlencoded = "0.7.1"
+serde_json = { version = "1" }
 base64 = "0.21.5"
 uuid = { version = "1", features = ["v4", "serde"] }
 argon2 = { version = "0.5", features = ["std"] }
@@ -48,6 +49,7 @@ actix-web-lab = "0.20"
 aws-sdk-dynamodb = "1"
 aws-config = "1"
 aws-smithy-runtime = "1"
+hyper = {version="1.1.0", features=["client"]}
 hyper-rustls = {version = "0.24.2", features=["webpki-roots"]}
 
 [dependencies.reqwest]

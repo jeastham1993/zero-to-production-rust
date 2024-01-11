@@ -1,3 +1,4 @@
+use crate::adapters::dynamo_db_session_store::DynamoDbSessionStore;
 use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
 use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
@@ -80,7 +81,14 @@ async fn run(
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
     let message_framework = FlashMessagesFramework::builder(message_store).build();
 
-    let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
+    // let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
+
+    let dynamo_db_store = DynamoDbSessionStore::builder()
+        .table_name(db_settings.auth_database_name.clone())
+        .key_name("PK".to_string())
+        .use_dynamo_db_local(db_settings.use_local)
+        .build()
+        .await?;
 
     let email_adapter = PostmarkEmailClient::new(
         email_settings.base_url.clone(),
@@ -139,7 +147,7 @@ async fn run(
         App::new()
             .wrap(message_framework.clone())
             .wrap(SessionMiddleware::new(
-                redis_store.clone(),
+                dynamo_db_store.clone(),
                 secret_key.clone(),
             ))
             .route("/", web::get().to(home))

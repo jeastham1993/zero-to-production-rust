@@ -1,5 +1,4 @@
 use crate::domain::email_client::EmailClient;
-#[allow(unused_imports)]
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
@@ -83,15 +82,6 @@ pub async fn subscribe(
         .await
         .context("Failed to store token in the database")?;
 
-    send_confirmation_email(
-        email_client.get_ref(),
-        new_subscriber,
-        &subscription_token,
-        &base_url.0,
-    )
-    .await
-    .context("Failed to send confirmation email")?;
-
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -122,14 +112,6 @@ pub async fn send_confirmation_email(
         .await
 }
 
-fn generate_subscription_token() -> String {
-    let mut rng = thread_rng();
-    std::iter::repeat_with(|| rng.sample(Alphanumeric))
-        .map(char::from)
-        .take(25)
-        .collect()
-}
-
 pub fn error_chain_fmt(
     e: &impl std::error::Error,
     f: &mut std::fmt::Formatter<'_>,
@@ -141,4 +123,12 @@ pub fn error_chain_fmt(
         current = cause.source();
     }
     Ok(())
+}
+
+fn generate_subscription_token() -> String {
+    let mut rng = thread_rng();
+    std::iter::repeat_with(|| rng.sample(Alphanumeric))
+        .map(char::from)
+        .take(25)
+        .collect()
 }

@@ -7,6 +7,7 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub telemetry: TelemetrySettings,
     pub email_settings: EmailClientSettings,
+    pub base_url: String,
 }
 
 #[derive(Deserialize, Clone)]
@@ -25,7 +26,7 @@ pub struct EmailClientSettings {
 }
 
 impl EmailClientSettings {
-    pub fn timeout(&self) -> Duration {
+    pub fn timeout_duration(&self) -> Duration {
         Duration::from_millis(self.timeout_milliseconds)
     }
 }
@@ -34,7 +35,7 @@ impl EmailClientSettings {
 pub struct DatabaseSettings {
     pub database_name: String,
     pub auth_database_name: String,
-    pub use_local: bool
+    pub use_local: bool,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {

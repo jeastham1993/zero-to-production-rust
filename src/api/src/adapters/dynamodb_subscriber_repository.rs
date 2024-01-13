@@ -63,17 +63,33 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         subscriber_id: String,
         subscription_token: &str,
     ) -> Result<(), anyhow::Error> {
-        let _put_res = self
+        let trace_details = get_trace_and_span_id();
+
+        let mut _put_res_builder = self
             .client
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(subscription_token.to_string()))
             .item(
-                "subscriber_id",
+                "EmailAddress",
                 AttributeValue::S(subscriber_id.to_string()),
             )
-            .condition_expression("attribute_not_exists(PK)".to_string())
-            .send()
+            .item(
+                "Type",
+                AttributeValue::S("SubscriberToken".to_string()),
+            )
+            .condition_expression("attribute_not_exists(PK)".to_string());
+
+        _put_res_builder = match trace_details {
+            None => _put_res_builder,
+            Some((trace_id, span_id)) => {
+                _put_res_builder
+                    .item("TraceParent", AttributeValue::S(trace_id))
+                    .item("ParentSpan", AttributeValue::S(span_id))
+            }
+        };
+
+        _put_res_builder.send()
             .await
             .context(format!(
                 "Failure inserting record to DynamoDB. Using table {}",
@@ -103,7 +119,7 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
             } else {
                 let first_item = items.first().unwrap();
 
-                Ok(Some(first_item["subscriber_id"].as_s().unwrap().clone()))
+                Ok(Some(first_item["EmailAddress"].as_s().unwrap().clone()))
             }
         } else {
             Err(DatabaseError::TokenNotFoundError("Token not found".to_string()).into())

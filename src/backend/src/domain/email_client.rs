@@ -1,5 +1,7 @@
+use tonic::async_trait;
 use crate::domain::subscriber_email::SubscriberEmail;
 
+#[async_trait]
 pub trait EmailClient {
     async fn send_email_to(
         &self,
@@ -7,5 +9,5 @@ pub trait EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), reqwest::Error>;
+    ) -> Result<(), anyhow::Error>;
 }

@@ -9,6 +9,7 @@ Resources:
       Dockerfile: Dockerfile
     Properties:
       PackageType: Image
+      Timeout: 30
       Architectures:
         - arm64
       Events:
@@ -18,3 +19,6 @@ Resources:
             Stream: arn:aws:dynamodb:eu-west-1:469909854323:table/newsletter/stream/2024-01-11T14:07:11.325
             StartingPosition: TRIM_HORIZON
             BatchSize: 10
+      Policies:
+        - DynamoDBWritePolicy:        # Policy template with placeholder value
+            TableName: newsletter

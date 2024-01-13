@@ -3,6 +3,7 @@ use crate::domain::subscriber_email::SubscriberEmail;
 use reqwest::Client;
 use secrecy::{ExposeSecret, Secret};
 use std::time::Duration;
+use tonic::async_trait;
 
 #[derive(Clone, Debug)]
 pub struct PostmarkEmailClient {
@@ -28,9 +29,10 @@ impl PostmarkEmailClient {
     }
 }
 
+#[async_trait]
 impl EmailClient for PostmarkEmailClient {
     #[tracing::instrument(
-    name = "Sending email to",
+    name = "send_email",
     skip(recipient, subject, html_content, text_content),
     fields(
     subscriber_email = %recipient.as_ref(),)
@@ -41,7 +43,7 @@ impl EmailClient for PostmarkEmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), anyhow::Error> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),

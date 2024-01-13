@@ -1,35 +1,114 @@
-mod telemetry;
 mod configuration;
 mod startup;
+mod telemetry;
 
-use std::future::Future;
-use std::time::Duration;
+use anyhow::Context;
+use aws_config::default_provider::credentials::DefaultCredentialsChain;
+use aws_config::meta::region::RegionProviderChain;
+use aws_config::{BehaviorVersion, Region};
 use aws_lambda_events::dynamodb::EventRecord;
-use aws_lambda_events::event::dynamodb::Event;use lambda_runtime::{run, service_fn, Error, LambdaEvent};
-use opentelemetry::{Context, global};
-use opentelemetry::trace::{FutureExt, Span, SpanContext, SpanId, SpanKind, TraceContextExt, TraceFlags, TraceId, Tracer, TracerProvider, TraceState};
+use aws_lambda_events::event::dynamodb::Event;
+use aws_sdk_dynamodb::config::ProvideCredentials;
+use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
+use backend::adapters::dynamo_db_subscriber_repository::DynamoDbSubscriberRepository;
+use backend::adapters::postmark_email_client::PostmarkEmailClient;
+use backend::configuration::{get_configuration, Settings};
+use backend::domain::email_client::EmailClient;
+use backend::domain::subscriber_email::SubscriberEmail;
+use backend::domain::subscriber_repository::SubscriberRepository;
+use backend::telemetry::{get_subscriber, init_tracer, parse_context};
+use backend::utils::error_chain_fmt;
+use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use opentelemetry::global;
+use opentelemetry::trace::{
+    FutureExt, Span, SpanContext, SpanId, SpanKind, TraceContextExt, TraceFlags, TraceId,
+    TraceState, Tracer, TracerProvider,
+};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use crate::configuration::{get_configuration, Settings};
-use crate::telemetry::{get_subscriber, init_subscriber, init_tracer};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use serde_dynamo::AttributeValue;
-use tracing::{error, Instrument, span};
+use std::future::Future;
+use std::sync::Arc;
+use tonic::codegen::tokio_stream::StreamExt;
 use tracing::subscriber::set_global_default;
+use tracing::{error, span, Instrument};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use backend::handler::handle_record;
 
-async fn function_handler(event: LambdaEvent<Event>) -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    let configuration = get_configuration().expect("Failed to read configuration");
+
+    let region = make_region_provider().region().await.unwrap();
+    let credentials = DefaultCredentialsChain::builder()
+        .region(region.clone())
+        .build()
+        .await
+        .provide_credentials()
+        .await
+        .unwrap();
+
+    let email_adapter = PostmarkEmailClient::new(
+        configuration.email_settings.base_url.clone(),
+        SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(),
+        configuration.email_settings.authorization_token.clone(),
+        configuration.email_settings.timeout_duration(),
+    );
+
+    let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build();
+    let hyper_client = HyperClientBuilder::new().build(https_connector);
+
+    let conf_builder = aws_sdk_dynamodb::Config::builder()
+        .behavior_version(BehaviorVersion::v2023_11_09())
+        .credentials_provider(credentials.clone())
+        .http_client(hyper_client)
+        .region(region.clone());
+
+    let conf = match configuration.database.use_local {
+        true => conf_builder.endpoint_url("http://localhost:8000").build(),
+        false => conf_builder.build(),
+    };
+
+    let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
+    let dynamo_db_repo = DynamoDbSubscriberRepository::new(
+        dynamodb_client,
+        configuration.database.database_name.clone(),
+    );
+
+    run(service_fn(|evt| {
+        function_handler(
+            evt,
+            &configuration,
+            &email_adapter,
+            &dynamo_db_repo,
+            &configuration.base_url,
+        )
+    }))
+    .await
+}
+
+async fn function_handler<TEmail: EmailClient, TRepo: SubscriberRepository>(
+    event: LambdaEvent<Event>,
+    configuration: &Settings,
+    email_client: &TEmail,
+    repo: &TRepo,
+    base_url: &str,
+) -> Result<(), Error> {
     // Extract some useful information from the request
     for record in event.payload.records {
-        let configuration = get_configuration().expect("Failed to read configuration");
-
         let provider = init_tracer(&configuration.telemetry);
         let tracer = &provider.tracer("zero2prod-backend");
 
-        let (ctx, span_ctx) = match parse_context(&record).await{
+        let ctx = match parse_context(&record).await {
             Ok(res) => res,
-            Err(_) => continue
+            Err(_) => continue,
         };
-
-        let span = tracer.start_with_context("Processing DynamoDB record", &ctx);
 
         let subscriber = get_subscriber(
             configuration.telemetry.dataset_name.clone(),
@@ -40,10 +119,16 @@ async fn function_handler(event: LambdaEvent<Event>) -> Result<(), Error> {
         );
 
         global::set_text_map_propagator(TraceContextPropagator::new());
-        set_global_default(subscriber);
+        let _ = set_global_default(subscriber);
 
-        do_work(&Context::new()
-            .with_span(span));
+        match handle_record(&ctx, record, email_client, repo, base_url).await {
+            Ok(_) => {}
+            Err(e) => {
+                let error_msg = format!("Failure handling DynamoDB stream record. Error: {}", e);
+
+                tracing::error!(error_msg);
+            }
+        };
 
         provider.force_flush();
     }
@@ -51,69 +136,6 @@ async fn function_handler(event: LambdaEvent<Event>) -> Result<(), Error> {
     Ok(())
 }
 
-async fn parse_context(record: &EventRecord) -> Result<(opentelemetry::Context, SpanContext), ()> {
-    if !record.change.new_image.contains_key("Type") {
-        return Err(());
-    }
-
-    let (_, type_value) = record.change.new_image.get_key_value("Type").unwrap();
-
-    let parsed_type_value = match type_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(())
-    };
-
-    if parsed_type_value != "Subscriber" {
-        return Err(());
-    }
-
-    let (_, trace_parent_value) = record.change.new_image.get_key_value("TraceParent").unwrap();
-    let (_, parent_span_value) = record.change.new_image.get_key_value("ParentSpan").unwrap();
-
-    let trace_parent_value = match trace_parent_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(())
-    };
-
-    let parent_span_value = match parent_span_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(())
-    };
-
-    let trace_id = TraceId::from_hex(trace_parent_value).unwrap();
-    let span_id = SpanId::from_hex(parent_span_value).unwrap();
-
-    let span_context = SpanContext::new(
-        trace_id,
-        span_id,
-        TraceFlags::SAMPLED,
-        false,
-        TraceState::NONE
-    );
-
-    let ctx = Context::new()
-        .with_remote_span_context(span_context.clone());
-
-    Ok((ctx, span_context))
-}
-
-#[tracing::instrument]
-fn do_work(context: &Context) {
-    tracing::Span::current().set_parent(context.clone());
-
-    std::thread::sleep(Duration::from_secs(1));
-
-    do_some_more_work();
-}
-
-#[tracing::instrument]
-fn do_some_more_work() {
-    std::thread::sleep(Duration::from_secs(1));
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    run(service_fn(|evt| {
-        function_handler(evt)
-    })).await
+pub fn make_region_provider() -> RegionProviderChain {
+    RegionProviderChain::default_provider().or_else(Region::new("us-east-1"))
 }

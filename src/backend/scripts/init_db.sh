@@ -42,14 +42,6 @@ aws dynamodb create-table \
                 }
             ]" > create-result.json
 
-aws dynamodb create-table \
-    --table-name auth \
-    --attribute-definitions AttributeName=PK,AttributeType=S  \
-    --key-schema AttributeName=PK,KeyType=HASH \
-    --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
-    --endpoint-url http://localhost:8000 \
-    --region us-east-1  > auth-table-create-result.json
-
 sleep 2
 
 >&2 echo "Table created"
@@ -59,5 +51,3 @@ sleep 2
 export AWS_ACCESS_KEY_ID=AKIAW22GPLBZ36234YRA
 export AWS_SECRET_ACCESS_KEY=local
 export AWS_REGION=us-east-1
-# on Mac the below command should be used if you receive a "too many files open error"
-# ulimit -n 2000

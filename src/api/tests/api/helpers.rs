@@ -46,6 +46,15 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
+    pub async fn confirm_subscription(&self, token: String) -> reqwest::Response {
+        reqwest::Client::new()
+            .get(&format!("{}/subscriptions/confirm?subscription_token={}", &self.address, token))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,
@@ -56,6 +65,33 @@ impl TestApp {
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    pub async fn get_token_for_email(&self, email_address: &str) -> String
+    {
+        let scan_results: Result<Vec<_>, _> = self.dynamo_db_client
+            .scan()
+            .table_name(&self.table_name)
+            .limit(5)
+            .into_paginator()
+            .items()
+            .send()
+            .collect()
+            .await;
+
+        let mut token = String::from("");
+
+        for item in scan_results.unwrap() {
+            let record_type = &item["Type"];
+
+            if record_type.as_s().unwrap() != "SubscriberToken" {
+                continue;
+            }
+
+            token = item["PK"].as_s().unwrap().clone();
+        }
+
+        token.to_string()
     }
 
     pub async fn get_login_html(&self) -> String {

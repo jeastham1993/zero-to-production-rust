@@ -19,7 +19,7 @@ use backend::telemetry::{get_subscriber, init_tracer, parse_context};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
 use opentelemetry::trace::{
-    Tracer, TracerProvider,
+    TracerProvider,
 };
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 

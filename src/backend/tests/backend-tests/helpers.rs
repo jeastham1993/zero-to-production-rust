@@ -15,7 +15,6 @@ use tracing::info;
 use uuid::Uuid;
 use wiremock::http::Method::Post;
 use wiremock::MockServer;
-use backend::adapters::dynamo_db_subscriber_repository::DynamoDbSubscriberRepository;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{DatabaseSettings, get_configuration};
 use backend::domain::email_client::EmailClient;
@@ -26,9 +25,7 @@ use backend::telemetry::{get_subscriber, init_subscriber, init_tracer};
 pub struct TestApp {
     pub email_server: MockServer,
     pub email_client: PostmarkEmailClient,
-    pub repo: DynamoDbSubscriberRepository,
     pub api_client: reqwest::Client,
-    pub dynamo_db_client: aws_sdk_dynamodb::Client,
     pub table_name: String,
     pub base_url: String,
 }
@@ -60,7 +57,7 @@ impl TestApp {
             table_name: None,
         };
 
-        handle_record(&Context::new(), record, &self.email_client, &self.repo, &self.base_url)
+        handle_record(&Context::new(), record, &self.email_client, &self.base_url)
             .await
     }
 }
@@ -82,9 +79,6 @@ pub async fn spawn_app() -> TestApp {
         c
     };
 
-    // Create and migrate the database
-    let dynamo_db_client = configure_database(&configuration.database).await;
-
     let tracer = init_tracer(&configuration.telemetry);
     let subscriber = get_subscriber(
         configuration.telemetry.dataset_name.clone(),
@@ -105,86 +99,10 @@ pub async fn spawn_app() -> TestApp {
     TestApp {
         email_server,
         api_client: client,
-        dynamo_db_client: dynamo_db_client.clone(),
         table_name: configuration.database.database_name.clone(),
         base_url: configuration.base_url.clone(),
         email_client: PostmarkEmailClient::new(configuration.email_settings.base_url.clone(), SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(), Secret::new("asecretkey".to_string()), Duration::from_secs(10)),
-        repo: DynamoDbSubscriberRepository::new(dynamo_db_client.clone(), configuration.database.database_name.clone())
     }
-}
-
-pub async fn configure_database(config: &DatabaseSettings) -> Client {
-    let conf = aws_sdk_dynamodb::Config::builder()
-        .behavior_version(BehaviorVersion::v2023_11_09())
-        .credentials_provider(EnvironmentVariableCredentialsProvider::new())
-        .region(Region::new("us-east-1"))
-        .endpoint_url("http://localhost:8000".to_string())
-        .build();
-
-    let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf);
-
-    let _create_table = dynamodb_client
-        .create_table()
-        .table_name(&config.database_name)
-        .billing_mode(BillingMode::PayPerRequest)
-        .attribute_definitions(
-            AttributeDefinition::builder()
-                .attribute_name("PK")
-                .attribute_type(S)
-                .build()
-                .unwrap(),
-        )
-        .attribute_definitions(
-            AttributeDefinition::builder()
-                .attribute_name("GSI1PK")
-                .attribute_type(S)
-                .build()
-                .unwrap(),
-        )
-        .attribute_definitions(
-            AttributeDefinition::builder()
-                .attribute_name("GSI1SK")
-                .attribute_type(S)
-                .build()
-                .unwrap(),
-        )
-        .key_schema(
-            KeySchemaElement::builder()
-                .attribute_name("PK")
-                .key_type(KeyType::Hash)
-                .build()
-                .unwrap(),
-        )
-        .global_secondary_indexes(
-            GlobalSecondaryIndex::builder()
-                .index_name("GSI1")
-                .key_schema(
-                    KeySchemaElement::builder()
-                        .attribute_name("GSI1PK")
-                        .key_type(KeyType::Hash)
-                        .build()
-                        .unwrap(),
-                )
-                .key_schema(
-                    KeySchemaElement::builder()
-                        .attribute_name("GSI1SK")
-                        .key_type(KeyType::Range)
-                        .build()
-                        .unwrap(),
-                )
-                .projection(
-                    Projection::builder()
-                        .projection_type(ProjectionType::All)
-                        .build(),
-                )
-                .build()
-                .unwrap(),
-        )
-        .send()
-        .await
-        .unwrap();
-
-    dynamodb_client
 }
 
 pub struct TestEmailClient {}

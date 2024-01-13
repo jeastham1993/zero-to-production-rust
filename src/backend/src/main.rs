@@ -10,12 +10,10 @@ use aws_lambda_events::dynamodb::EventRecord;
 use aws_lambda_events::event::dynamodb::Event;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
-use backend::adapters::dynamo_db_subscriber_repository::DynamoDbSubscriberRepository;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{get_configuration, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::domain::subscriber_repository::SubscriberRepository;
 use backend::telemetry::{get_subscriber, init_tracer, parse_context};
 use backend::utils::error_chain_fmt;
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
@@ -25,11 +23,8 @@ use opentelemetry::trace::{
     TraceState, Tracer, TracerProvider,
 };
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use serde_dynamo::AttributeValue;
+use rand::Rng;
 use std::future::Future;
-use std::sync::Arc;
 use tonic::codegen::tokio_stream::StreamExt;
 use tracing::subscriber::set_global_default;
 use tracing::{error, span, Instrument};
@@ -75,29 +70,21 @@ async fn main() -> Result<(), Error> {
         false => conf_builder.build(),
     };
 
-    let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
-    let dynamo_db_repo = DynamoDbSubscriberRepository::new(
-        dynamodb_client,
-        configuration.database.database_name.clone(),
-    );
-
     run(service_fn(|evt| {
         function_handler(
             evt,
             &configuration,
             &email_adapter,
-            &dynamo_db_repo,
             &configuration.base_url,
         )
     }))
     .await
 }
 
-async fn function_handler<TEmail: EmailClient, TRepo: SubscriberRepository>(
+async fn function_handler<TEmail: EmailClient>(
     event: LambdaEvent<Event>,
     configuration: &Settings,
     email_client: &TEmail,
-    repo: &TRepo,
     base_url: &str,
 ) -> Result<(), Error> {
     // Extract some useful information from the request
@@ -121,7 +108,7 @@ async fn function_handler<TEmail: EmailClient, TRepo: SubscriberRepository>(
         global::set_text_map_propagator(TraceContextPropagator::new());
         let _ = set_global_default(subscriber);
 
-        match handle_record(&ctx, record, email_client, repo, base_url).await {
+        match handle_record(&ctx, record, email_client, base_url).await {
             Ok(_) => {}
             Err(e) => {
                 let error_msg = format!("Failure handling DynamoDB stream record. Error: {}", e);

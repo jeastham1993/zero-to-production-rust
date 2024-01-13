@@ -6,7 +6,6 @@ use serde_dynamo::AttributeValue;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
-use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::utils::error_chain_fmt;
 
 #[derive(thiserror::Error)]
@@ -23,12 +22,11 @@ impl std::fmt::Debug for EmailSendingError {
     }
 }
 
-#[tracing::instrument(name="handle_dynamo_db_stream_record", skip(context, email_client, repo))]
-pub async fn handle_record<TEmail: EmailClient, TRepo: SubscriberRepository>(
+#[tracing::instrument(name="handle_dynamo_db_stream_record", skip(context, email_client))]
+pub async fn handle_record<TEmail: EmailClient>(
     context: &opentelemetry::Context,
     record: EventRecord,
     email_client: &TEmail,
-    repo: &TRepo,
     base_url: &str,
 ) -> Result<(), EmailSendingError> {
     tracing::Span::current().set_parent(context.clone());

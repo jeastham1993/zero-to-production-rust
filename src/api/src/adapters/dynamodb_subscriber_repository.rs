@@ -23,6 +23,9 @@ impl DynamoDbSubscriberRepository {
 
 #[async_trait]
 impl SubscriberRepository for DynamoDbSubscriberRepository {
+    #[tracing::instrument(
+    skip(new_subscriber)
+    )]
     async fn insert_subscriber(
         &self,
         new_subscriber: &NewSubscriber,
@@ -57,7 +60,9 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
 
         Ok(new_subscriber.email.to_string())
     }
-
+    #[tracing::instrument(
+    skip(subscriber_id, subscription_token)
+    )]
     async fn store_token(
         &self,
         subscriber_id: String,
@@ -99,6 +104,9 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         Ok(())
     }
 
+    #[tracing::instrument(
+    skip(subscription_token)
+    )]
     async fn get_subscriber_id_from_token(
         &self,
         subscription_token: &str,
@@ -126,6 +134,9 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         }
     }
 
+    #[tracing::instrument(
+    skip(subscriber_id)
+    )]
     async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), anyhow::Error> {
         let trace_details = get_trace_and_span_id();
 
@@ -159,6 +170,9 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         Ok(())
     }
 
+    #[tracing::instrument(
+    skip()
+    )]
     async fn get_confirmed_subscribers(
         &self,
     ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {

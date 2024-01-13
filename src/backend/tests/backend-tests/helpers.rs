@@ -1,22 +1,22 @@
 use std::collections::HashMap;
 use std::time::Duration;
 use async_trait::async_trait;
-use aws_config::{BehaviorVersion, Region};
-use aws_config::environment::EnvironmentVariableCredentialsProvider;
+
+
 use aws_lambda_events::dynamodb::{EventRecord, StreamRecord};
-use aws_sdk_dynamodb::Client;
-use aws_sdk_dynamodb::types::{AttributeDefinition, BillingMode, GlobalSecondaryIndex, KeySchemaElement, KeyType, Projection, ProjectionType};
-use aws_sdk_dynamodb::types::ScalarAttributeType::S;
+
+
+
 use opentelemetry::Context;
 use opentelemetry::trace::TracerProvider;
 use secrecy::Secret;
-use serde_dynamo::{AttributeValue, Item};
+use serde_dynamo::{AttributeValue};
 use tracing::info;
 use uuid::Uuid;
-use wiremock::http::Method::Post;
+
 use wiremock::MockServer;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
-use backend::configuration::{DatabaseSettings, get_configuration};
+use backend::configuration::{get_configuration};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
 use backend::handler::{EmailSendingError, handle_record};

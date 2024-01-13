@@ -32,7 +32,7 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
         .await;
 
     // Act
-    let res = app.process_record_with_email_address("james@test.com").await;
+    let _res = app.process_record_with_email_address("james@test.com").await;
 
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
 

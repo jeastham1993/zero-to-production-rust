@@ -39,7 +39,7 @@ pub async fn handle_record<TEmail: EmailClient>(
         email_client,
         SubscriberEmail::parse(subscriber_id).unwrap(),
         &subscription_token,
-        &base_url,
+        base_url,
     )
         .await
         .context("Failed to send confirmation email")?;

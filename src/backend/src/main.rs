@@ -2,11 +2,11 @@ mod configuration;
 mod startup;
 mod telemetry;
 
-use anyhow::Context;
+
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
-use aws_lambda_events::dynamodb::EventRecord;
+
 use aws_lambda_events::event::dynamodb::Event;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
@@ -15,20 +15,19 @@ use backend::configuration::{get_configuration, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
 use backend::telemetry::{get_subscriber, init_tracer, parse_context};
-use backend::utils::error_chain_fmt;
+
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
 use opentelemetry::trace::{
-    FutureExt, Span, SpanContext, SpanId, SpanKind, TraceContextExt, TraceFlags, TraceId,
-    TraceState, Tracer, TracerProvider,
+    Tracer, TracerProvider,
 };
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use rand::Rng;
-use std::future::Future;
-use tonic::codegen::tokio_stream::StreamExt;
+
+
+
 use tracing::subscriber::set_global_default;
-use tracing::{error, span, Instrument};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+
 use backend::handler::handle_record;
 
 #[tokio::main]
@@ -65,7 +64,7 @@ async fn main() -> Result<(), Error> {
         .http_client(hyper_client)
         .region(region.clone());
 
-    let conf = match configuration.database.use_local {
+    let _conf = match configuration.database.use_local {
         true => conf_builder.endpoint_url("http://localhost:8000").build(),
         false => conf_builder.build(),
     };
@@ -102,7 +101,7 @@ async fn function_handler<TEmail: EmailClient>(
             "info".into(),
             std::io::stdout,
             &configuration.telemetry,
-            &tracer,
+            tracer,
         );
 
         global::set_text_map_propagator(TraceContextPropagator::new());

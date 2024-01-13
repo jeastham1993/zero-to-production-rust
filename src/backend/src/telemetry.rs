@@ -1,5 +1,5 @@
 use crate::configuration::TelemetrySettings;
-use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TracerProvider as _, TraceState};
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -11,7 +11,7 @@ use aws_lambda_events::dynamodb::EventRecord;
 use serde_dynamo::AttributeValue;
 
 use tracing::subscriber::set_global_default;
-use tracing::{level_filters::LevelFilter, Span, Subscriber};
+use tracing::{level_filters::LevelFilter, Subscriber};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::fmt::MakeWriter;
@@ -68,7 +68,7 @@ pub fn get_subscriber<Sink>(
     name: String,
     env_filter: String,
     sink: Sink,
-    config: &TelemetrySettings,
+    _config: &TelemetrySettings,
     tracer: &opentelemetry_sdk::trace::Tracer,
 ) -> impl Subscriber + Send + Sync
 where

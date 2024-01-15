@@ -67,7 +67,7 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn get_token_for_email(&self, email_address: &str) -> String
+    pub async fn get_token_for_email(&self, _email_address: &str) -> String
     {
         let scan_results: Result<Vec<_>, _> = self.dynamo_db_client
             .scan()

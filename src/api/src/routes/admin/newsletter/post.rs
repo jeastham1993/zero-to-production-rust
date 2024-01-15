@@ -39,41 +39,6 @@ pub async fn publish_newsletter(
     form: web::Form<FormData>,
     newsletter_store: web::Data<dyn NewsletterStore>
 ) -> Result<HttpResponse, PublishNewsletterError> {
-    // let subscribers = repo
-    //     .get_confirmed_subscribers()
-    //     .await
-    //     .context("Failure retrieving confirmed subscribers")?;
-    //
-    // tracing::info!(
-    //     "There are {} confirmed subscribers",
-    //     subscribers.len()
-    // );
-    //
-    // for subscriber in subscribers {
-    //     match subscriber {
-    //         Ok(subscriber) => {
-    //             email_client
-    //                 .send_email_to(
-    //                     &subscriber.email,
-    //                     &form.title,
-    //                     &form.html_content,
-    //                     &form.text_content,
-    //                 )
-    //                 .await
-    //                 .with_context(|| {
-    //                     format!("Failed to send newsletter issue to {}", subscriber.email)
-    //                 })?;
-    //         }
-    //         Err(error) => {
-    //             tracing::warn!(
-    //                 error.cause_chain = ?error,
-    //                 error.message = %error,
-    //                 "Skipping a confirmed subscriber. Their stored contact details are invalid",
-    //             );
-    //         }
-    //     }
-    // }
-
     newsletter_store
         .store_newsletter_metadata(NewsletterMetadata::new(&form.title, &form.text_content, &form.html_content))
         .await

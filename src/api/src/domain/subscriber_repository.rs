@@ -41,9 +41,5 @@ pub trait SubscriberRepository {
 
     async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), anyhow::Error>;
 
-    async fn get_confirmed_subscribers(
-        &self,
-    ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error>;
-
     async fn apply_migrations(&self) -> Result<(), anyhow::Error>;
 }

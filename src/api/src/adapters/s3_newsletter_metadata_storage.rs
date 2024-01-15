@@ -28,6 +28,7 @@ impl S3NewsletterMetadataStorage {
 #[async_trait]
 impl NewsletterStore for S3NewsletterMetadataStorage {
     #[tracing::instrument(
+    name = "store_newsletter_metadata_in_s3",
     skip(self, metadata)
     )]
     async fn store_newsletter_metadata(&self, metadata: NewsletterMetadata) -> Result<String, NewsletterStoreError> {

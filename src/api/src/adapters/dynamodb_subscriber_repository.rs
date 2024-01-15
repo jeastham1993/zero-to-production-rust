@@ -170,38 +170,6 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         Ok(())
     }
 
-    #[tracing::instrument(
-    skip()
-    )]
-    async fn get_confirmed_subscribers(
-        &self,
-    ) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
-        let query_res = self
-            .client
-            .query()
-            .table_name(&self.table_name)
-            .index_name("GSI1".to_string())
-            .key_condition_expression("#gsi1pk = :gsi1pk")
-            .expression_attribute_names("#gsi1pk", "GSI1PK")
-            .expression_attribute_values(":gsi1pk", AttributeValue::S("confirmed".to_string()))
-            .send()
-            .await?;
-
-        if let Some(items) = query_res.items {
-            let subscribers = items
-                .iter()
-                .map(|v| {
-                    Ok(ConfirmedSubscriber {
-                        email: SubscriberEmail::parse(v["PK"].as_s().unwrap().clone()).unwrap(),
-                    })
-                })
-                .collect();
-            Ok(subscribers)
-        } else {
-            Err(DatabaseError::TokenNotFoundError("Token not found".to_string()).into())
-        }
-    }
-
     async fn apply_migrations(&self) -> Result<(), anyhow::Error> {
         todo!()
     }

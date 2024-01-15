@@ -31,6 +31,8 @@ use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
 use std::sync::Arc;
 use tracing_actix_web::{RequestId, TracingLogger};
+use crate::adapters::S3NewsletterMetadataStorage;
+use crate::domain::NewsletterStore;
 
 pub struct ApplicationBaseUrl(pub String);
 
@@ -53,7 +55,6 @@ impl Application {
             configuration.email_settings,
             configuration.application.base_url,
             configuration.application.hmac_secret,
-            configuration.redis_uri,
         )
         .await?;
 
@@ -75,7 +76,6 @@ async fn run(
     email_settings: EmailClientSettings,
     base_url: String,
     hmac_secret: Secret<String>,
-    redis_uri: Secret<String>,
 ) -> Result<Server, anyhow::Error> {
     let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
@@ -118,7 +118,7 @@ async fn run(
         let conf_builder = aws_sdk_dynamodb::Config::builder()
             .behavior_version(BehaviorVersion::v2023_11_09())
             .credentials_provider(credentials.clone())
-            .http_client(hyper_client)
+            .http_client(hyper_client.clone())
             .region(region.clone());
 
         let conf = match db_settings.use_local {
@@ -126,9 +126,21 @@ async fn run(
             false => conf_builder.build(),
         };
 
+        let s3_conf_builder = aws_sdk_s3::Config::builder()
+            .behavior_version(BehaviorVersion::v2023_11_09())
+            .credentials_provider(credentials.clone())
+            .http_client(hyper_client.clone())
+            .region(region.clone())
+            .build();
+
+        let s3_client = aws_sdk_s3::Client::from_conf(s3_conf_builder);
         let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
         let dynamo_db_repo =
-            DynamoDbSubscriberRepository::new(dynamodb_client, db_settings.database_name.clone());
+            DynamoDbSubscriberRepository::new(dynamodb_client.clone(), db_settings.database_name.clone());
+        let newsletter_store =
+            S3NewsletterMetadataStorage::new(s3_client, dynamodb_client.clone(), db_settings.database_name.clone(), db_settings.newsletter_storage_bucket.clone());
+
+
         let user_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
         let user_repo =
             DynamoDbUserRepository::new(user_client, db_settings.auth_database_name.clone());
@@ -141,6 +153,9 @@ async fn run(
 
         let email_client_arc: Arc<dyn EmailClient> = Arc::new(email_adapter.clone());
         let email_client_data: Data<dyn EmailClient> = Data::from(email_client_arc.clone());
+
+        let newsletter_store_arc: Arc<dyn NewsletterStore> = Arc::new(newsletter_store);
+        let newsletter_store_data: Data<dyn NewsletterStore> = Data::from(newsletter_store_arc);
 
         App::new()
             .wrap(message_framework.clone())
@@ -185,6 +200,7 @@ async fn run(
             .app_data(store_data)
             .app_data(user_repo_data)
             .app_data(email_client_data)
+            .app_data(newsletter_store_data)
             .app_data(base_url.clone())
             .app_data(Data::new(HmacSecret(hmac_secret.clone())))
     })

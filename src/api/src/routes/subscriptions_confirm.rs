@@ -33,7 +33,7 @@ impl ResponseError for ConfirmationError {
 }
 
 #[tracing::instrument(
-    name = "Confirming a pending subscriber",
+    name = "confirm_subscriber",
     skip(parameters, repo),
     fields()
 )]

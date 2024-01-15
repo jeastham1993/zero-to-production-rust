@@ -1,7 +1,7 @@
 use crate::authentication::UserRepository;
 use actix_web::{web, HttpResponse};
 
-#[tracing::instrument(name = "Database migration", skip(connection))]
+#[tracing::instrument(skip(connection))]
 pub async fn migrate_db(connection: web::Data<dyn UserRepository>) -> HttpResponse {
     match connection.seed().await {
         Ok(_) => {

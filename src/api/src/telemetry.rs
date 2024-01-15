@@ -3,7 +3,7 @@ use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::rt::task::JoinHandle;
 use actix_web::Error;
-use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::trace::{TraceContextExt, TracerProvider as _};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -17,6 +17,7 @@ use tracing::{level_filters::LevelFilter, Span, Subscriber};
 use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
@@ -98,6 +99,26 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
             runtime::Tokio,
         )
         .build()
+}
+
+pub fn get_trace_and_span_id() -> Option<(String, String)> {
+    // Access the current span
+    let current_span = Span::current();
+    // Retrieve the context from the current span
+    let context = current_span.context();
+    // Use OpenTelemetry's API to retrieve the TraceContext
+    let span_context = context.span().span_context().clone();
+
+    // Check if the span context is valid
+    if span_context.is_valid() {
+        // Retrieve traceId and spanId
+        let trace_id = span_context.trace_id().to_string().clone();
+        let span_id = span_context.span_id().to_string().clone();
+        Some((trace_id, span_id))
+    } else {
+        // No valid span context found
+        None
+    }
 }
 
 pub struct CustomLevelRootSpanBuilder;

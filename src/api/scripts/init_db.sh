@@ -56,8 +56,8 @@ sleep 2
 
 >&2 echo "Setting dummy environment variables for DynamoDB Local"
 
-export AWS_ACCESS_KEY_ID=AKIAW22GPLBZ36234YRA
-export AWS_SECRET_ACCESS_KEY=local
-export AWS_REGION=us-east-1
+#export AWS_ACCESS_KEY_ID=AKIAW22GPLBZ36234YRA
+#export AWS_SECRET_ACCESS_KEY=local
+#export AWS_REGION=us-east-1
 # on Mac the below command should be used if you receive a "too many files open error"
 # ulimit -n 2000

@@ -9,6 +9,7 @@ use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
+use crate::domain::{NewsletterMetadata, NewsletterStore, NewsletterStoreError};
 
 #[derive(thiserror::Error)]
 pub enum PublishNewsletterError {
@@ -37,50 +38,52 @@ pub struct FormData {
 }
 
 #[tracing::instrument(
-name = "Publish a newsletter issue",
-skip(form, email_client, user_id, repo),
-fields(user_id=%*user_id)
+skip(form, newsletter_store),
 )]
 pub async fn publish_newsletter(
     form: web::Form<FormData>,
-    user_id: ReqData<UserId>,
-    email_client: web::Data<dyn EmailClient>,
-    repo: web::Data<dyn SubscriberRepository>,
+    newsletter_store: web::Data<dyn NewsletterStore>
 ) -> Result<HttpResponse, PublishNewsletterError> {
-    let subscribers = repo
-        .get_confirmed_subscribers()
+    // let subscribers = repo
+    //     .get_confirmed_subscribers()
+    //     .await
+    //     .context("Failure retrieving confirmed subscribers")?;
+    //
+    // tracing::info!(
+    //     "There are {} confirmed subscribers",
+    //     subscribers.len()
+    // );
+    //
+    // for subscriber in subscribers {
+    //     match subscriber {
+    //         Ok(subscriber) => {
+    //             email_client
+    //                 .send_email_to(
+    //                     &subscriber.email,
+    //                     &form.title,
+    //                     &form.html_content,
+    //                     &form.text_content,
+    //                 )
+    //                 .await
+    //                 .with_context(|| {
+    //                     format!("Failed to send newsletter issue to {}", subscriber.email)
+    //                 })?;
+    //         }
+    //         Err(error) => {
+    //             tracing::warn!(
+    //                 error.cause_chain = ?error,
+    //                 error.message = %error,
+    //                 "Skipping a confirmed subscriber. Their stored contact details are invalid",
+    //             );
+    //         }
+    //     }
+    // }
+
+    newsletter_store
+        .store_newsletter_metadata(NewsletterMetadata::new(&form.title, &form.text_content, &form.html_content))
         .await
-        .context("Failure retrieving confirmed subscribers")?;
+        .context("Failure storing newsletter data")?;
 
-    tracing::info!(
-        "There are {} confirmed subscribers",
-        subscribers.len()
-    );
-
-    for subscriber in subscribers {
-        match subscriber {
-            Ok(subscriber) => {
-                email_client
-                    .send_email_to(
-                        &subscriber.email,
-                        &form.title,
-                        &form.html_content,
-                        &form.text_content,
-                    )
-                    .await
-                    .with_context(|| {
-                        format!("Failed to send newsletter issue to {}", subscriber.email)
-                    })?;
-            }
-            Err(error) => {
-                tracing::warn!(
-                    error.cause_chain = ?error,
-                    error.message = %error,
-                    "Skipping a confirmed subscriber. Their stored contact details are invalid",
-                );
-            }
-        }
-    }
     FlashMessage::info("The newsletter issue has been published!").send();
     Ok(see_other("/admin/newsletters"))
 }

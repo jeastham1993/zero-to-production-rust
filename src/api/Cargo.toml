@@ -47,6 +47,7 @@ actix-web-flash-messages = { version = "0.4", features = ["cookies"] }
 actix-session = { version = "0.8", features = ["redis-rs-tls-session"] }
 actix-web-lab = "0.20"
 aws-sdk-dynamodb = "1"
+aws-sdk-s3 = "1"
 aws-config = "1"
 aws-smithy-runtime = "1"
 hyper = {version="1.1.0", features=["client"]}

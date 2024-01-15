@@ -56,7 +56,7 @@ impl TryFrom<FormData> for NewSubscriber {
 }
 
 #[tracing::instrument(
-    name = "Adding a new subscriber",
+    name = "adding_new_subscriber",
     skip(form, repo, email_client, base_url),
     fields(
         subscriber_email = %form.email,
@@ -83,33 +83,6 @@ pub async fn subscribe(
         .context("Failed to store token in the database")?;
 
     Ok(HttpResponse::Ok().finish())
-}
-
-#[tracing::instrument(
-    name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber, subscription_token, base_url)
-)]
-pub async fn send_confirmation_email(
-    email_client: &dyn EmailClient,
-    new_subscriber: NewSubscriber,
-    subscription_token: &str,
-    base_url: &str,
-) -> Result<(), reqwest::Error> {
-    let confirmation_link = format!(
-        "{}/subscriptions/confirm?subscription_token={}",
-        base_url, subscription_token
-    );
-    let plain_body = format!(
-        "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
-        confirmation_link
-    );
-    let html_body = format!(
-        "Welcome to our newsletter!<br />Click <a href=\"{}\">here</a> to confirm your subscription.",
-        confirmation_link
-    );
-    email_client
-        .send_email_to(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
-        .await
 }
 
 pub fn error_chain_fmt(

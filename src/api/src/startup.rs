@@ -105,7 +105,7 @@ async fn run(
         .build();
     let hyper_client = HyperClientBuilder::new().build(https_connector);
 
-    let s3_config = configure_s3(&hyper_client).await;
+    let s3_config = configure_s3(&hyper_client, &db_settings).await;
     let dynamo_config = configure_dynamo(&hyper_client, &db_settings).await;
 
     let server = HttpServer::new(move || {
@@ -115,7 +115,7 @@ async fn run(
         let dynamo_db_repo =
             DynamoDbSubscriberRepository::new(dynamodb_client.clone(), db_settings.database_name.clone());
         let newsletter_store =
-            S3NewsletterMetadataStorage::new(s3_client, dynamodb_client.clone(), db_settings.database_name.clone(), db_settings.newsletter_storage_bucket.clone());
+            S3NewsletterMetadataStorage::new(s3_client, dynamodb_client.clone(), db_settings.newsletter_storage_bucket.clone(), db_settings.database_name.clone());
 
         let user_client = aws_sdk_dynamodb::Client::from_conf(dynamo_config.clone());
         let user_repo =
@@ -186,8 +186,11 @@ async fn run(
     Ok(server)
 }
 
-async fn configure_s3(hyper_client: &SharedHttpClient) -> aws_sdk_s3::Config {
-    let region = RegionProviderChain::default_provider().or_else(Region::new("eu-west-1")).region().await.unwrap();
+async fn configure_s3(hyper_client: &SharedHttpClient, db_settings: &DatabaseSettings) -> aws_sdk_s3::Config {
+    let region = match db_settings.use_local {
+        true => Region::new("eu-west-1"),
+        false => RegionProviderChain::default_provider().or_else(Region::new("eu-west-1")).region().await.unwrap()
+    };
 
     let credentials = DefaultCredentialsChain::builder()
         .region(region.clone())

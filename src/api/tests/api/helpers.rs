@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use async_trait::async_trait;
@@ -9,6 +10,7 @@ use aws_sdk_dynamodb::types::{
     KeyType, Projection, ProjectionType,
 };
 use aws_sdk_dynamodb::Client;
+use aws_sdk_dynamodb::operation::get_item::{GetItemError, GetItemOutput};
 
 use tracing::log::info;
 use uuid::Uuid;
@@ -92,6 +94,25 @@ impl TestApp {
         }
 
         token.to_string()
+    }
+
+    pub async fn validate_newsletter_storage(&self, title: &str) -> Result<(), ()>{
+        let get_res = self.dynamo_db_client
+            .get_item()
+            .table_name(&self.table_name)
+            .key("PK", AttributeValue::S(title.to_string()))
+            .send()
+            .await;
+
+        match get_res {
+            Ok(res) => {
+                match res.item {
+                    None => Err(()),
+                    Some(_) => Ok(())
+                }
+            },
+            Err(_) => Err(())
+        }
     }
 
     pub async fn get_login_html(&self) -> String {

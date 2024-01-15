@@ -24,35 +24,7 @@ async fn create_confirmed_subscriber(app: &TestApp) {
 }
 
 #[tokio::test]
-async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
-    // Arrange
-    let app = spawn_app().await;
-    create_unconfirmed_subscriber(&app).await;
-    app.test_user.login(&app).await;
-
-    Mock::given(any())
-        .respond_with(ResponseTemplate::new(200))
-        .expect(0)
-        .mount(&app.email_server)
-        .await;
-
-    // Act - Part 1 - Submit newsletter form
-    let newsletter_request_body = serde_json::json!({
-        "title": "Newsletter title",
-        "text_content": "Newsletter body as plain text",
-        "html_content": "<p>Newsletter body as HTML</p>",
-    });
-    let response = app.post_publish_newsletter(&newsletter_request_body).await;
-    assert_is_redirect_to(&response, "/admin/newsletters");
-
-    // Act - Part 2 - Follow the redirect
-    let html_page = app.get_publish_newsletter_html().await;
-    assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
-    // Mock verifies on Drop that we haven't sent the newsletter email
-}
-
-#[tokio::test]
-async fn newsletters_are_delivered_to_confirmed_subscribers() {
+async fn newsletter_is_stored_ready_for_send() {
     // Arrange
     let app = spawn_app().await;
     create_confirmed_subscriber(&app).await;
@@ -77,6 +49,11 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     let html_page = app.get_publish_newsletter_html().await;
     assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
     // Mock verifies on Drop that we have sent the newsletter email
+
+    // Act - Part 3 - Verify that the issue is stored in the database
+    let res = app.validate_newsletter_storage("Newsletter title").await;
+
+    assert_eq!(res.is_err(), false);
 }
 
 #[tokio::test]

@@ -44,3 +44,5 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: newsletter
+        - S3ReadPolicy:
+            BucketName: james-eastham-newsletter-content

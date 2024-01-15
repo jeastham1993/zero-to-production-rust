@@ -1,4 +1,6 @@
+use crate::domain::confirmed_subscriber::ConfirmedSubscriber;
 use crate::domain::email_client::EmailClient;
+use crate::domain::newsletter_metadata::NewsletterMetadata;
 use crate::domain::newsletter_store::NewsletterStore;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
@@ -26,7 +28,7 @@ impl std::fmt::Debug for EmailSendingError {
 
 #[tracing::instrument(
     name = "handle_dynamo_db_stream_record",
-    skip(context, email_client, repo, newsletter_store)
+    skip(context, record, email_client, repo, newsletter_store)
 )]
 pub async fn handle_record<
     TEmail: EmailClient,
@@ -50,21 +52,19 @@ pub async fn handle_record<
 
     let newsletter_data_path = parse_object_path(&record).unwrap();
 
+    tracing::info!("Newsletter data path is {}", &newsletter_data_path);
+
     let newsletter_information = newsletter_store
         .retrieve_newsletter(newsletter_data_path.as_str())
         .await
-        .context("Failure retrieving metadata")?;
+        .context("Failure retrieving metadata informationx")?;
 
     for subscriber in subscribers {
         match subscriber {
             Ok(subscriber) => {
-                email_client
-                    .send_email_to(
-                        &subscriber.email,
-                        &newsletter_information.issue_title,
-                        &newsletter_information.html_content,
-                        &newsletter_information.text_content,
-                    )
+                tracing::info!("Sending email to {}", &subscriber.email.to_string());
+
+                send_email(email_client, &subscriber, &newsletter_information)
                     .await
                     .with_context(|| {
                         format!("Failed to send newsletter issue to {}", subscriber.email)
@@ -79,6 +79,27 @@ pub async fn handle_record<
             }
         }
     }
+
+    Ok(())
+}
+
+#[tracing::instrument(
+skip(email_client, subscriber, newsletter_information)
+)]
+async fn send_email<TEmail: EmailClient>(
+    email_client: &TEmail,
+    subscriber: &ConfirmedSubscriber,
+    newsletter_information: &NewsletterMetadata,
+) -> Result<(), anyhow::Error> {
+    email_client
+        .send_email_to(
+            &subscriber.email,
+            &newsletter_information.issue_title,
+            &newsletter_information.html_content,
+            &newsletter_information.text_content,
+        )
+        .await
+        .with_context(|| format!("Failed to send newsletter issue to {}", subscriber.email))?;
 
     Ok(())
 }

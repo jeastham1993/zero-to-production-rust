@@ -51,8 +51,10 @@ async fn main() -> Result<(), Error> {
     let dynamo_config = configure_dynamo(&hyper_client, &configuration.database).await;
 
     let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
-    let newsletter_service =
-        S3NewsletterMetadataStorage::new(s3_client, configuration.database.newsletter_storage_bucket.clone());
+    let newsletter_service = S3NewsletterMetadataStorage::new(
+        s3_client,
+        configuration.database.newsletter_storage_bucket.clone(),
+    );
 
     let dynamo_client = aws_sdk_dynamodb::Client::from_conf(dynamo_config);
     let subscriber_repo = DynamoDbSubscriberRepository::new(

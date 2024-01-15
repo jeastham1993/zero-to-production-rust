@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
+use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
 use serde::Serialize;
 
 pub struct S3NewsletterMetadataStorage {
@@ -28,20 +29,35 @@ impl NewsletterStore for S3NewsletterMetadataStorage {
         &self,
         path: &str,
     ) -> Result<NewsletterMetadata, NewsletterStoreError> {
-        let mut get_result = self
+        let get_result = self
             .s3_client
             .get_object()
             .bucket(&self.bucket_name)
             .key(path)
             .send()
-            .await
-            .context("Failure retrieving S3 item")?;
+            .await;
 
-        let bytes = get_result.body.collect().await.unwrap();
+        match get_result {
+            Ok(res) => {
+                let bytes = res.body.collect().await.unwrap();
 
-        let metadata: NewsletterMetadata = wrapper(bytes.to_vec()).unwrap();
+                let metadata: NewsletterMetadata = wrapper(bytes.to_vec()).unwrap();
 
-        Ok(metadata)
+                tracing::info!("Newsletter title to work on is {}", &metadata.issue_title);
+
+                Ok(metadata)
+            }
+            Err(s3_error) => {
+                match s3_error.into_service_error() {
+                    GetObjectError::InvalidObjectState(_) => tracing::error!("Invalid object state"),
+                    GetObjectError::NoSuchKey(_) => tracing::error!("No such key"),
+                    GetObjectError::Unhandled(e)  => tracing::error!("Unhandled error"),
+                    _  => tracing::error!("Unknown error"),
+                }
+
+                Err(NewsletterStoreError::IssueExists("Error".to_string()))
+            }
+        }
     }
 }
 

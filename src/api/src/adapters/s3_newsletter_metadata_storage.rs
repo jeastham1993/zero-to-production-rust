@@ -47,11 +47,9 @@ impl NewsletterStore for S3NewsletterMetadataStorage {
 
         match put_object_result {
             Ok(_ok_res) => {
-                let s3_uri = format!("s3://{}/{}", &self.bucket_name, &object_key);
+                let _ = self.store_issue_in_dynamo(&metadata.issue_title, &object_key).await;
 
-                let _ = self.store_issue_in_dynamo(&metadata.issue_title, &s3_uri).await;
-
-                Ok(s3_uri)
+                Ok(object_key)
             },
             Err(e) => Err(NewsletterStoreError::UnexpectedError(e.into()))
         }

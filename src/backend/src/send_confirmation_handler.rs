@@ -1,12 +1,12 @@
-use anyhow::Context;
-use aws_lambda_events::dynamodb::EventRecord;
-use rand::distributions::Alphanumeric;
-use rand::{Rng, thread_rng};
-use serde_dynamo::AttributeValue;
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::utils::error_chain_fmt;
+use anyhow::Context;
+use aws_lambda_events::dynamodb::EventRecord;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use serde_dynamo::AttributeValue;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(thiserror::Error)]
 pub enum EmailSendingError {
@@ -22,7 +22,7 @@ impl std::fmt::Debug for EmailSendingError {
     }
 }
 
-#[tracing::instrument(name="handle_dynamo_db_stream_record", skip(context, email_client))]
+#[tracing::instrument(name = "handle_dynamo_db_stream_record", skip(context, email_client))]
 pub async fn handle_record<TEmail: EmailClient>(
     context: &opentelemetry::Context,
     record: EventRecord,
@@ -41,15 +41,15 @@ pub async fn handle_record<TEmail: EmailClient>(
         &subscription_token,
         base_url,
     )
-        .await
-        .context("Failed to send confirmation email")?;
+    .await
+    .context("Failed to send confirmation email")?;
 
     Ok(())
 }
 
 #[tracing::instrument(
-name = "send_confirmation_email_to_subscriber",
-skip(email_client, new_subscriber, subscription_token, base_url)
+    name = "send_confirmation_email_to_subscriber",
+    skip(email_client, new_subscriber, subscription_token, base_url)
 )]
 pub async fn send_confirmation_email(
     email_client: &dyn EmailClient,

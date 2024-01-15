@@ -1,6 +1,6 @@
+use crate::helpers::spawn_app;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use crate::helpers::spawn_app;
 
 #[tokio::test]
 async fn with_valid_dynamo_db_record_email_should_send() {
@@ -13,8 +13,7 @@ async fn with_valid_dynamo_db_record_email_should_send() {
         .mount(&app.email_server)
         .await;
 
-
-    let _ =app.process_record_with_email_address("test@test.com").await;
+    let _ = app.process_record_with_email_address("test@test.com").await;
 
     // Assert
     // Mock server asserts the expected number of requests received on drop.
@@ -32,7 +31,9 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
         .await;
 
     // Act
-    let _res = app.process_record_with_email_address("james@test.com").await;
+    let _res = app
+        .process_record_with_email_address("james@test.com")
+        .await;
 
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
 

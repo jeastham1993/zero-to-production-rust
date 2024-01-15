@@ -1,5 +1,5 @@
-use tonic::async_trait;
 use crate::domain::subscriber_email::SubscriberEmail;
+use tonic::async_trait;
 
 #[async_trait]
 pub trait EmailClient {

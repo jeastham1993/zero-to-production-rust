@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
-  ProcessDynamoDBStream:
+  ProcessSendConfirmation:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Metadata:
       DockerTag: ProcessDynamoDbStreamBackend
       DockerContext: .
-      Dockerfile: Dockerfile
+      Dockerfile: Dockerfile-SendConfirmation
     Properties:
       PackageType: Image
       Timeout: 30
@@ -20,5 +20,27 @@ Resources:
             StartingPosition: TRIM_HORIZON
             BatchSize: 10
       Policies:
-        - DynamoDBWritePolicy:        # Policy template with placeholder value
+        - DynamoDBReadPolicy:
+            TableName: newsletter
+
+  ProcessSendNewsletter:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      DockerTag: ProcessDynamoDbStreamBackend
+      DockerContext: .
+      Dockerfile: Dockerfile-SendNewsletter
+    Properties:
+      PackageType: Image
+      Timeout: 30
+      Architectures:
+        - arm64
+      Events:
+        DDBEvent:
+          Type: DynamoDB
+          Properties:
+            Stream: arn:aws:dynamodb:eu-west-1:469909854323:table/newsletter/stream/2024-01-11T14:07:11.325
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 10
+      Policies:
+        - DynamoDBReadPolicy:
             TableName: newsletter

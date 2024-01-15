@@ -3,12 +3,9 @@ name = "backend"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-path = "src/lib.rs"
-
 [dependencies]
 aws_lambda_events = { version = "0.12.0", default-features = false, features = ["dynamodb"] }
-lambda_runtime = "0.8.3"
+lambda_runtime = {version = "0.9", optional = true }
 async-trait = "0.1.77"
 tokio = {version = "1", features = ["macros", "rt-multi-thread", "macros"]}
 serde = {version = "1", features = ["derive"]}
@@ -23,7 +20,6 @@ tracing-opentelemetry = { version="0.22", features = ["tracing-log", "async-trai
 tonic = "0.10.2"
 secrecy = { version = "0.8", features = ["serde"] }
 opentelemetry = { version = "0.21.0", features = ["trace"] }
-# Updating to 0.11 requires protoc installed but 0.10 fortunately does not
 opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
 opentelemetry-semantic-conventions = "0.13.0"
 opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio", "rt-tokio-current-thread"] }
@@ -41,6 +37,7 @@ base64 = "0.21.5"
 uuid = { version = "1", features = ["v4", "serde"] }
 argon2 = { version = "0.5", features = ["std"] }
 aws-sdk-dynamodb = "1"
+aws-sdk-s3 = "1"
 aws-config = "1"
 aws-smithy-runtime = "1"
 hyper = {version="1.1.0", features=["client"]}
@@ -65,3 +62,25 @@ tokio = {version = "1", features = ["rt", "macros"]}
 wiremock = "0.5"
 serde_json = "1"
 linkify = "0.10"
+
+[features]
+default = ["lambda"]
+lambda = ["lambda_runtime"]
+
+[[bin]]
+name = "send_confirmation"
+path = "src/bin/lambda/send_confirmation.rs"
+test = false
+required-features = ["lambda"]
+
+[[bin]]
+name = "send_newsletter"
+path = "src/bin/lambda/send_newsletter.rs"
+test = false
+required-features = ["lambda"]
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

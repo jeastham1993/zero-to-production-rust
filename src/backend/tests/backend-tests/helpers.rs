@@ -1,26 +1,23 @@
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::time::Duration;
-use async_trait::async_trait;
-
 
 use aws_lambda_events::dynamodb::{EventRecord, StreamRecord};
 
-
-
-use opentelemetry::Context;
 use opentelemetry::trace::TracerProvider;
+use opentelemetry::Context;
 use secrecy::Secret;
-use serde_dynamo::{AttributeValue};
+use serde_dynamo::AttributeValue;
 use tracing::info;
 use uuid::Uuid;
 
-use wiremock::MockServer;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
-use backend::configuration::{get_configuration};
+use backend::configuration::get_configuration;
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::handler::{EmailSendingError, handle_record};
+use backend::send_confirmation_handler::{handle_record, EmailSendingError};
 use backend::telemetry::{get_subscriber, init_subscriber, init_tracer};
+use wiremock::MockServer;
 
 pub struct TestApp {
     pub email_server: MockServer,
@@ -31,12 +28,21 @@ pub struct TestApp {
 }
 
 impl TestApp {
-    pub async fn process_record_with_email_address(&self, email_address: &str) -> Result<(), EmailSendingError> {
+    pub async fn process_record_with_email_address(
+        &self,
+        email_address: &str,
+    ) -> Result<(), EmailSendingError> {
         let mut hash_map: HashMap<String, AttributeValue> = HashMap::new();
-        hash_map.insert("EmailAddress".to_string(), AttributeValue::S(email_address.to_string()));
-        hash_map.insert("Type".to_string(), AttributeValue::S("SubscriberToken".to_string()));
+        hash_map.insert(
+            "EmailAddress".to_string(),
+            AttributeValue::S(email_address.to_string()),
+        );
+        hash_map.insert(
+            "Type".to_string(),
+            AttributeValue::S("SubscriberToken".to_string()),
+        );
 
-        let record = EventRecord{
+        let record = EventRecord {
             aws_region: "us-east-1".to_string(),
             change: StreamRecord {
                 approximate_creation_date_time: Default::default(),
@@ -57,8 +63,7 @@ impl TestApp {
             table_name: None,
         };
 
-        handle_record(&Context::new(), record, &self.email_client, &self.base_url)
-            .await
+        handle_record(&Context::new(), record, &self.email_client, &self.base_url).await
     }
 }
 
@@ -101,7 +106,12 @@ pub async fn spawn_app() -> TestApp {
         api_client: client,
         table_name: configuration.database.database_name.clone(),
         base_url: configuration.base_url.clone(),
-        email_client: PostmarkEmailClient::new(configuration.email_settings.base_url.clone(), SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(), Secret::new("asecretkey".to_string()), Duration::from_secs(10)),
+        email_client: PostmarkEmailClient::new(
+            configuration.email_settings.base_url.clone(),
+            SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(),
+            Secret::new("asecretkey".to_string()),
+            Duration::from_secs(10),
+        ),
     }
 }
 

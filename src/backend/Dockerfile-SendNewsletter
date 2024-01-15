@@ -10,7 +10,7 @@ FROM chef as builder
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN cargo build --release --bin backend
+RUN cargo build --release --bin send_newsletter
 
 FROM amazonlinux:2023 as runtime
 WORKDIR /app
@@ -19,8 +19,8 @@ RUN yum update ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/backend backend
+COPY --from=builder /app/target/release/send_newsletter send_newsletter
 COPY configuration/base.yaml configuration/production.yaml configuration/
 ENV APP_ENVIRONMENT=production
 
-ENTRYPOINT ["./backend"]
+ENTRYPOINT ["./send_newsletter"]

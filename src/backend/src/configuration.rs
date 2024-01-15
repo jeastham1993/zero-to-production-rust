@@ -36,6 +36,7 @@ pub struct DatabaseSettings {
     pub database_name: String,
     pub auth_database_name: String,
     pub use_local: bool,
+    pub newsletter_storage_bucket: String,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {

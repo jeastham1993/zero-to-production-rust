@@ -1,8 +1,3 @@
-mod configuration;
-mod startup;
-mod telemetry;
-
-
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
@@ -18,17 +13,12 @@ use backend::telemetry::{get_subscriber, init_tracer, parse_context};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
-use opentelemetry::trace::{
-    TracerProvider,
-};
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-
-
 
 use tracing::subscriber::set_global_default;
 
-
-use backend::handler::handle_record;
+use backend::send_confirmation_handler::handle_record;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -70,12 +60,7 @@ async fn main() -> Result<(), Error> {
     };
 
     run(service_fn(|evt| {
-        function_handler(
-            evt,
-            &configuration,
-            &email_adapter,
-            &configuration.base_url,
-        )
+        function_handler(evt, &configuration, &email_adapter, &configuration.base_url)
     }))
     .await
 }
@@ -91,7 +76,7 @@ async fn function_handler<TEmail: EmailClient>(
         let provider = init_tracer(&configuration.telemetry);
         let tracer = &provider.tracer("zero2prod-backend");
 
-        let ctx = match parse_context(&record).await {
+        let ctx = match parse_context(&record, "SubscriberToken").await {
             Ok(res) => res,
             Err(_) => continue,
         };

@@ -1,4 +1,5 @@
 use crate::configuration::TelemetrySettings;
+use aws_lambda_events::dynamodb::EventRecord;
 use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
@@ -6,9 +7,8 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{config, Config, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
-use std::collections::HashMap;
-use aws_lambda_events::dynamodb::EventRecord;
 use serde_dynamo::AttributeValue;
+use std::collections::HashMap;
 
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Subscriber};
@@ -94,7 +94,10 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
     let _ = set_global_default(subscriber);
 }
 
-pub async fn parse_context(record: &EventRecord) -> Result<opentelemetry::Context, ()> {
+pub async fn parse_context(
+    record: &EventRecord,
+    for_type: &str,
+) -> Result<opentelemetry::Context, ()> {
     if !record.change.new_image.contains_key("Type") {
         return Err(());
     }
@@ -106,7 +109,7 @@ pub async fn parse_context(record: &EventRecord) -> Result<opentelemetry::Contex
         _ => return Err(()),
     };
 
-    if parsed_type_value != "SubscriberToken" {
+    if parsed_type_value != for_type {
         return Err(());
     }
 

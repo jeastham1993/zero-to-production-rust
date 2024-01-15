@@ -1,4 +1,3 @@
-use crate::startup::make_region_provider;
 use actix_session::storage::{LoadError, SaveError, SessionKey, SessionStore, UpdateError};
 use actix_web::cookie::time::Duration;
 use anyhow::Error;
@@ -14,6 +13,8 @@ use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use aws_config::meta::region::RegionProviderChain;
+
 pub(crate) type SessionState = HashMap<String, String>;
 
 #[derive(Clone)]
@@ -186,7 +187,7 @@ impl SessionStore for DynamoDbSessionStore {
         let session_key = generate_session_key();
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
 
-        let put_res = self
+        let _ = self
             .client
             .put_item()
             .table_name(&self.configuration.table_name)
@@ -242,7 +243,7 @@ impl SessionStore for DynamoDbSessionStore {
                 // // This can happen if the session state expired between the load operation and the
                 // update operation. Unlucky, to say the least. We fall back to the `save` routine
                 // to ensure that the new key is unique.
-                SdkError::ResponseError(resp_err) => {
+                SdkError::ResponseError(_resp_err) => {
                     self.save(session_state, ttl)
                         .await
                         .map_err(|err| match err {
@@ -352,4 +353,8 @@ async fn make_config(
             .build(),
         false => conf_builder.build(),
     })
+}
+
+fn make_region_provider() -> RegionProviderChain {
+    RegionProviderChain::default_provider().or_else(Region::new("us-east-1"))
 }

@@ -31,7 +31,6 @@ impl NewsletterStore for S3NewsletterMetadataStorage {
     skip(self, metadata)
     )]
     async fn store_newsletter_metadata(&self, metadata: NewsletterMetadata) -> Result<String, NewsletterStoreError> {
-        let json_metadata = serde_json::to_string(&metadata).unwrap();
         let json_bytes = json_bytes(&metadata);
 
         let body = ByteStream::from(json_bytes);
@@ -47,7 +46,7 @@ impl NewsletterStore for S3NewsletterMetadataStorage {
             .await;
 
         match put_object_result {
-            Ok(ok_res) => {
+            Ok(_ok_res) => {
                 let s3_uri = format!("s3://{}/{}", &self.bucket_name, &object_key);
 
                 let _ = self.store_issue_in_dynamo(&metadata.issue_title, &s3_uri).await;

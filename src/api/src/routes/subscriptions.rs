@@ -1,9 +1,7 @@
-use crate::domain::email_client::EmailClient;
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
 use crate::domain::subscriber_repository::{SubscriberRepository};
-use crate::startup::ApplicationBaseUrl;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
@@ -57,7 +55,7 @@ impl TryFrom<FormData> for NewSubscriber {
 
 #[tracing::instrument(
     name = "adding_new_subscriber",
-    skip(form, repo, email_client, base_url),
+    skip(form, repo),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name)
@@ -65,8 +63,6 @@ impl TryFrom<FormData> for NewSubscriber {
 pub async fn subscribe(
     form: web::Form<FormData>,
     repo: web::Data<dyn SubscriberRepository>,
-    email_client: web::Data<dyn EmailClient>,
-    base_url: web::Data<ApplicationBaseUrl>,
 ) -> Result<HttpResponse, SubscribeError> {
     let new_subscriber: NewSubscriber =
         form.0.try_into().map_err(SubscribeError::ValidationError)?;

@@ -1,15 +1,10 @@
-use crate::authentication::UserId;
-use crate::domain::email_client::EmailClient;
-use crate::domain::subscriber_email::SubscriberEmail;
-use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::routes::{error_chain_fmt};
 use crate::utils::{see_other};
 use actix_web::http::StatusCode;
-use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
-use crate::domain::{NewsletterMetadata, NewsletterStore, NewsletterStoreError};
+use crate::domain::{NewsletterMetadata, NewsletterStore};
 
 #[derive(thiserror::Error)]
 pub enum PublishNewsletterError {
@@ -86,8 +81,4 @@ pub async fn publish_newsletter(
 
     FlashMessage::info("The newsletter issue has been published!").send();
     Ok(see_other("/admin/newsletters"))
-}
-
-struct ConfirmedSubscriber {
-    email: SubscriberEmail,
 }

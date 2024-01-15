@@ -12,7 +12,6 @@ use crate::routes::{
     login, login_form, migrate_db, publish_newsletter, publish_newsletter_form, subscribe,
 };
 use crate::telemetry::CustomLevelRootSpanBuilder;
-use actix_session::storage::RedisSessionStore;
 use actix_session::SessionMiddleware;
 use actix_web::cookie::Key;
 use actix_web::dev::{Server, Service};
@@ -30,6 +29,7 @@ use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
 use std::sync::Arc;
+use aws_sdk_s3::config::{SharedHttpClient};
 use tracing_actix_web::{RequestId, TracingLogger};
 use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;
@@ -95,60 +95,36 @@ async fn run(
         email_settings.timeout(),
     );
 
-    let region = make_region_provider().region().await.unwrap();
-    let credentials = DefaultCredentialsChain::builder()
-        .region(region.clone())
-        .build()
-        .await
-        .provide_credentials()
-        .await
-        .unwrap();
-
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
+    let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build();
+    let hyper_client = HyperClientBuilder::new().build(https_connector);
+
+    let s3_config = configure_s3(&hyper_client).await;
+    let dynamo_config = configure_dynamo(&hyper_client, &db_settings).await;
+
     let server = HttpServer::new(move || {
-        let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
-            .with_webpki_roots()
-            .https_or_http()
-            .enable_http1()
-            .enable_http2()
-            .build();
-        let hyper_client = HyperClientBuilder::new().build(https_connector);
+        let s3_client = aws_sdk_s3::Client::from_conf(s3_config.clone());
+        let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(dynamo_config.clone());
 
-        let conf_builder = aws_sdk_dynamodb::Config::builder()
-            .behavior_version(BehaviorVersion::v2023_11_09())
-            .credentials_provider(credentials.clone())
-            .http_client(hyper_client.clone())
-            .region(region.clone());
-
-        let conf = match db_settings.use_local {
-            true => conf_builder.endpoint_url("http://localhost:8000").build(),
-            false => conf_builder.build(),
-        };
-
-        let s3_conf_builder = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::v2023_11_09())
-            .credentials_provider(credentials.clone())
-            .http_client(hyper_client.clone())
-            .region(region.clone())
-            .build();
-
-        let s3_client = aws_sdk_s3::Client::from_conf(s3_conf_builder);
-        let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
         let dynamo_db_repo =
             DynamoDbSubscriberRepository::new(dynamodb_client.clone(), db_settings.database_name.clone());
         let newsletter_store =
             S3NewsletterMetadataStorage::new(s3_client, dynamodb_client.clone(), db_settings.database_name.clone(), db_settings.newsletter_storage_bucket.clone());
 
-
-        let user_client = aws_sdk_dynamodb::Client::from_conf(conf.clone());
+        let user_client = aws_sdk_dynamodb::Client::from_conf(dynamo_config.clone());
         let user_repo =
             DynamoDbUserRepository::new(user_client, db_settings.auth_database_name.clone());
 
-        let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(dynamo_db_repo.clone());
+        let repo_arc: Arc<dyn SubscriberRepository> = Arc::new(dynamo_db_repo);
         let store_data: Data<dyn SubscriberRepository> = Data::from(repo_arc);
 
-        let user_repo_arc: Arc<dyn UserRepository> = Arc::new(user_repo.clone());
+        let user_repo_arc: Arc<dyn UserRepository> = Arc::new(user_repo);
         let user_repo_data: Data<dyn UserRepository> = Data::from(user_repo_arc);
 
         let email_client_arc: Arc<dyn EmailClient> = Arc::new(email_adapter.clone());
@@ -210,8 +186,46 @@ async fn run(
     Ok(server)
 }
 
-pub fn make_region_provider() -> RegionProviderChain {
-    RegionProviderChain::default_provider().or_else(Region::new("us-east-1"))
+async fn configure_s3(hyper_client: &SharedHttpClient) -> aws_sdk_s3::Config {
+    let region = RegionProviderChain::default_provider().or_else(Region::new("eu-west-1")).region().await.unwrap();
+
+    let credentials = DefaultCredentialsChain::builder()
+        .region(region.clone())
+        .build()
+        .await
+        .provide_credentials()
+        .await
+        .unwrap();
+
+    aws_sdk_s3::Config::builder()
+        .behavior_version(BehaviorVersion::v2023_11_09())
+        .credentials_provider(credentials.clone())
+        .http_client(hyper_client.clone())
+        .region(region.clone())
+        .build()
+}
+
+async fn configure_dynamo(hyper_client: &SharedHttpClient, db_settings: &DatabaseSettings) -> aws_sdk_dynamodb::Config {
+    let region = RegionProviderChain::default_provider().or_else(Region::new("us-east-1")).region().await.unwrap();
+
+    let credentials = DefaultCredentialsChain::builder()
+        .region(region.clone())
+        .build()
+        .await
+        .provide_credentials()
+        .await
+        .unwrap();
+
+    let conf_builder = aws_sdk_dynamodb::Config::builder()
+        .behavior_version(BehaviorVersion::v2023_11_09())
+        .credentials_provider(credentials.clone())
+        .http_client(hyper_client.clone())
+        .region(region.clone());
+
+    match db_settings.use_local {
+        true => conf_builder.endpoint_url("http://localhost:8000").build(),
+        false => conf_builder.build(),
+    }
 }
 
 #[derive(Clone)]

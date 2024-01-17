@@ -44,18 +44,15 @@ impl<S, B> Service<ServiceRequest> for TraceDataMiddleware<S>
     actix_web::dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        dbg!("Flushing");
         let app_data = req.app_data::<actix_web::web::Data<opentelemetry_sdk::trace::TracerProvider>>();
-        // THIS NEXT LINE FAILS
-        // thread 'actix-rt|system:0|arbiter:0' panicked at 'called `Option::unwrap()` on a `None` value'
         let state = app_data.as_ref().unwrap();
-        let color = state.as_ref().clone();
+        let provider = state.as_ref().clone();
         let fut = self.service.call(req);
 
         Box::pin(async move {
             let mut res = fut.await?;
 
-            color.force_flush();
+            provider.force_flush();
 
             Ok(res)
         })

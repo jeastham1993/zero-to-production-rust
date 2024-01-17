@@ -33,7 +33,7 @@ pub async fn handle_record<TEmail: EmailClient>(
 
     let subscription_token = generate_subscription_token();
 
-    let subscriber_id = get_email_adress_from(&record)?;
+    let subscriber_id = get_email_address_from(&record)?;
 
     send_confirmation_email(
         email_client,
@@ -75,7 +75,7 @@ pub async fn send_confirmation_email(
         .await
 }
 
-fn get_email_adress_from(record: &EventRecord) -> Result<String, EmailSendingError> {
+fn get_email_address_from(record: &EventRecord) -> Result<String, EmailSendingError> {
     let (_, type_value) = record
         .change
         .new_image

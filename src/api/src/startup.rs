@@ -3,7 +3,7 @@ use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepositor
 use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
 use crate::authentication::{reject_anonymous_users, UserRepository};
-use crate::configuration::{DatabaseSettings, EmailClientSettings, Settings};
+use crate::configuration::{DatabaseSettings, EmailClientSettings, get_configuration, Settings, TelemetrySettings};
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
@@ -11,13 +11,14 @@ use crate::routes::{
     admin_dashboard, change_password, change_password_form, confirm, health_check, home, log_out,
     login, login_form, migrate_db, publish_newsletter, publish_newsletter_form, subscribe,
 };
-use crate::telemetry::CustomLevelRootSpanBuilder;
+use crate::telemetry::{CustomLevelRootSpanBuilder, get_subscriber, init_subscriber, init_tracer};
 use actix_session::SessionMiddleware;
 use actix_web::cookie::Key;
 use actix_web::dev::{Server, Service};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
+use actix_web_lab::__reexports::futures_util::future::FutureExt;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
@@ -28,11 +29,16 @@ use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use actix_web::body::MessageBody;
 use aws_sdk_s3::config::{SharedHttpClient};
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider;
+use tonic::codegen::tokio_stream::StreamExt;
 use tracing_actix_web::{RequestId, TracingLogger};
 use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;
+use crate::middleware::TraceData;
 
 pub struct ApplicationBaseUrl(pub String);
 
@@ -55,6 +61,7 @@ impl Application {
             configuration.email_settings,
             configuration.application.base_url,
             configuration.application.hmac_secret,
+            &configuration.telemetry
         )
         .await?;
 
@@ -76,6 +83,7 @@ async fn run(
     email_settings: EmailClientSettings,
     base_url: String,
     hmac_secret: Secret<String>,
+    telemetry: &TelemetrySettings
 ) -> Result<Server, anyhow::Error> {
     let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
@@ -108,6 +116,17 @@ async fn run(
     let s3_config = configure_s3(&hyper_client, &db_settings).await;
     let dynamo_config = configure_dynamo(&hyper_client, &db_settings).await;
 
+    let tracer = init_tracer(telemetry);
+    let subscriber = get_subscriber(
+        telemetry.dataset_name.clone(),
+        "info".into(),
+        std::io::stdout,
+        telemetry,
+        &tracer,
+    );
+
+    init_subscriber(subscriber);
+
     let server = HttpServer::new(move || {
         let s3_client = aws_sdk_s3::Client::from_conf(s3_config.clone());
         let dynamodb_client = aws_sdk_dynamodb::Client::from_conf(dynamo_config.clone());
@@ -133,6 +152,9 @@ async fn run(
         let newsletter_store_arc: Arc<dyn NewsletterStore> = Arc::new(newsletter_store);
         let newsletter_store_data: Data<dyn NewsletterStore> = Data::from(newsletter_store_arc);
 
+        let arc_tracer = Arc::new(tracer.clone());
+        let tracer_data = Data::from(arc_tracer);
+
         App::new()
             .wrap(message_framework.clone())
             .wrap(SessionMiddleware::new(
@@ -154,8 +176,10 @@ async fn run(
             .wrap_fn(|req, srv| {
                 let request_id = req.extensions().get::<RequestId>().copied();
                 let res = srv.call(req);
+
                 async move {
                     let mut res = res.await?;
+
                     if let Some(request_id) = request_id {
                         res.headers_mut().insert(
                             HeaderName::from_static("x-request-id"),
@@ -163,9 +187,11 @@ async fn run(
                             HeaderValue::from_str(&request_id.to_string()).unwrap(),
                         );
                     }
+
                     Ok(res)
                 }
             })
+            .wrap(TraceData)
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
             .route("/health_check", web::get().to(health_check))
@@ -179,7 +205,9 @@ async fn run(
             .app_data(newsletter_store_data)
             .app_data(base_url.clone())
             .app_data(Data::new(HmacSecret(hmac_secret.clone())))
+            .app_data(tracer_data)
     })
+    .workers(1)
     .listen(listener)?
     .run();
 

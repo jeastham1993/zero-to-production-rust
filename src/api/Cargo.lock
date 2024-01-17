@@ -4535,6 +4535,8 @@ dependencies = [
  "claims",
  "config",
  "fake",
+ "futures",
+ "futures-util",
  "hyper 1.1.0",
  "hyper-rustls",
  "linkify",

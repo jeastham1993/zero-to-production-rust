@@ -8,6 +8,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef as builder
 COPY --from=planner /app/recipe.json recipe.json
+RUN apt-get install musl-tools clang llvm -y libssl-dev
+RUN rustup target add aarch64-unknown-linux-musl
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY ../.. .
 RUN cargo build --release --bin zero2prod
@@ -20,7 +22,7 @@ RUN yum update ca-certificates
 COPY --from=builder /app/target/release/zero2prod zero2prod
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY configuration/base.yaml configuration/production.yaml configuration/
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.7.1 /lambda-adapter /opt/extensions/lambda-adapter
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.7.2 /lambda-adapter /opt/extensions/lambda-adapter
 ENV APP_ENVIRONMENT=production
 
 ENTRYPOINT ["./zero2prod"]

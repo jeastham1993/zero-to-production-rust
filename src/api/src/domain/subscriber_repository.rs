@@ -1,4 +1,4 @@
-use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
+use crate::domain::new_subscriber::{NewSubscriber};
 
 use async_trait::async_trait;
 

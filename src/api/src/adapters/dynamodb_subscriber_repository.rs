@@ -1,5 +1,5 @@
-use crate::domain::new_subscriber::{ConfirmedSubscriber, NewSubscriber};
-use crate::domain::subscriber_email::SubscriberEmail;
+use crate::domain::new_subscriber::{NewSubscriber};
+
 use crate::domain::subscriber_repository::{DatabaseError, SubscriberRepository};
 use anyhow::{Context, Result};
 use async_trait::async_trait;

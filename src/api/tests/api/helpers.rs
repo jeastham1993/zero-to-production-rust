@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use async_trait::async_trait;
@@ -10,7 +10,7 @@ use aws_sdk_dynamodb::types::{
     KeyType, Projection, ProjectionType,
 };
 use aws_sdk_dynamodb::Client;
-use aws_sdk_dynamodb::operation::get_item::{GetItemError, GetItemOutput};
+
 
 use tracing::log::info;
 use uuid::Uuid;

@@ -1,19 +1,19 @@
 use crate::configuration::TelemetrySettings;
 use actix_web::body::MessageBody;
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse};
+use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::rt::task::JoinHandle;
 use actix_web::Error;
 use opentelemetry::trace::{TraceContextExt, TracerProvider as _};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{BatchSpanProcessor, config, Config, TracerProvider};
+use opentelemetry_sdk::trace::{config, Config, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
-use std::rc::Rc;
+
 use std::sync::{Arc, Mutex};
-use actix_web_lab::__reexports::futures_util::future::LocalBoxFuture;
+
 
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Span, Subscriber};
@@ -141,7 +141,7 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
     }
 
     fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
-        let currentSpan = tracing::Span::current();
+        let _currentSpan = tracing::Span::current();
 
         DefaultRootSpanBuilder::on_request_end(span, outcome);
     }

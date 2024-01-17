@@ -3,7 +3,7 @@ use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepositor
 use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
 use crate::adapters::postmark_email_client::PostmarkEmailClient;
 use crate::authentication::{reject_anonymous_users, UserRepository};
-use crate::configuration::{DatabaseSettings, EmailClientSettings, get_configuration, Settings, TelemetrySettings};
+use crate::configuration::{DatabaseSettings, EmailClientSettings, Settings, TelemetrySettings};
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
@@ -18,7 +18,7 @@ use actix_web::dev::{Server, Service};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
-use actix_web_lab::__reexports::futures_util::future::FutureExt;
+
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
@@ -29,11 +29,11 @@ use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use reqwest::header::{HeaderName, HeaderValue};
 use secrecy::{ExposeSecret, Secret};
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
-use actix_web::body::MessageBody;
+use std::sync::{Arc};
+
 use aws_sdk_s3::config::{SharedHttpClient};
-use opentelemetry::global;
-use opentelemetry::trace::TracerProvider;
+
+
 use tonic::codegen::tokio_stream::StreamExt;
 use tracing_actix_web::{RequestId, TracingLogger};
 use crate::adapters::S3NewsletterMetadataStorage;

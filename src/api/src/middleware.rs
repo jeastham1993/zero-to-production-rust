@@ -1,11 +1,9 @@
 use std::{
     future::{ready, Future, Ready},
-    marker::PhantomData,
-    task::{Context, Poll},
 };
 use std::pin::Pin;
-use std::process::Output;
-use actix_web::dev::{Response, Service, ServiceRequest, ServiceResponse, Transform};
+
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::Error;
 
 pub struct TraceData;
@@ -50,7 +48,7 @@ impl<S, B> Service<ServiceRequest> for TraceDataMiddleware<S>
         let fut = self.service.call(req);
 
         Box::pin(async move {
-            let mut res = fut.await?;
+            let res = fut.await?;
 
             provider.force_flush();
 

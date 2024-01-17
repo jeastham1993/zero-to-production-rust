@@ -195,7 +195,7 @@ impl SessionStore for DynamoDbSessionStore {
             .item("session_data", AttributeValue::S(body))
             .item(
                 &self.configuration.ttl_name,
-                AttributeValue::N(get_epoch_ms(ttl.clone()).to_string()),
+                AttributeValue::N(get_epoch_ms(*ttl).to_string()),
             )
             .condition_expression(
                 format!("attribute_not_exists({})", self.configuration.key_name).to_string(),
@@ -228,7 +228,7 @@ impl SessionStore for DynamoDbSessionStore {
             .item("session_data", AttributeValue::S(body))
             .item(
                 &self.configuration.ttl_name,
-                AttributeValue::N(get_epoch_ms(ttl.clone()).to_string()),
+                AttributeValue::N(get_epoch_ms(*ttl).to_string()),
             )
             .condition_expression(
                 format!("attribute_exists({})", self.configuration.key_name).to_string(),
@@ -270,7 +270,7 @@ impl SessionStore for DynamoDbSessionStore {
             .update_expression("SET ttl = :value")
             .expression_attribute_values(
                 ":value",
-                AttributeValue::N(get_epoch_ms(ttl.clone()).to_string()),
+                AttributeValue::N(get_epoch_ms(*ttl).to_string()),
             )
             .send()
             .await

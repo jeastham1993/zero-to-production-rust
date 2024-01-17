@@ -1,5 +1,5 @@
 use crate::helpers::{assert_is_redirect_to, spawn_app, TestApp};
-use wiremock::matchers::{any, method, path};
+use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 async fn create_unconfirmed_subscriber(app: &TestApp) {
@@ -53,7 +53,7 @@ async fn newsletter_is_stored_ready_for_send() {
     // Act - Part 3 - Verify that the issue is stored in the database
     let res = app.validate_newsletter_storage("Newsletter title").await;
 
-    assert_eq!(res.is_err(), false);
+    assert!(!res.is_err());
 }
 
 #[tokio::test]

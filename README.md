@@ -43,7 +43,7 @@ telemetry:
 email_settings:
   base_url: "https://api.postmarkapp.com" # URL to use for sending emails
   sender_email: "james.eastham@uppd.co.uk" # Email address to send emails from
-  authorization_token: "7039c7b7-dbf1-41d9-a26c-7586330162dd" # Postmark authentication token
+  authorization_token: "" # Postmark authentication token
   timeout_milliseconds: 10000 # Mail server timeout
 ```
 

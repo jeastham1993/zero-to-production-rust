@@ -80,10 +80,6 @@ export class NewsletterApi extends Construct {
       restApiName: "NewsletterApi",
       description: "This service serves widgets."
     });
-    api.addDomainName("zero2prod-domain", {
-      certificate: Certificate.fromCertificateArn(this, "zero2prodcert", "arn:aws:acm:eu-west-1:469909854323:certificate/5addfffd-b0ab-420a-b01a-7359b0230385"),
-      domainName: "zero2prod.jameseastham.co.uk"
-    });
 
     const newsletter_app_integration = new LambdaIntegration(api_function, {
       requestTemplates: { "application/json": '{ "statusCode": "200" }' }

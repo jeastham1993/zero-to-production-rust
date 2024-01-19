@@ -35,14 +35,14 @@ database:
   database_name: "newsletter" # Name of DynamoDB table for newsletter and subscriber data
   auth_database_name: "auth" # Name of DynamoDB table for authentication
   use_local: true # Configure DynamoDB local
-  newsletter_storage_bucket: "james-eastham-newsletter-content" # S3 Bucket name for storing newsletter metadata
+  newsletter_storage_bucket: "" # S3 Bucket name for storing newsletter metadata
 telemetry:
   otlp_endpoint: "jaeger"  # Endpoint to send OTLP data to, set to Jaeger to use the local Jaeger exporter
   honeycomb_api_key: "" # API Key if sending trace data to Honeycomb
   dataset_name: "zero2prod-api" # The trace dataset name
 email_settings:
   base_url: "https://api.postmarkapp.com" # URL to use for sending emails
-  sender_email: "james.eastham@uppd.co.uk" # Email address to send emails from
+  sender_email: "" # Email address to send emails from
   authorization_token: "" # Postmark authentication token
   timeout_milliseconds: 10000 # Mail server timeout
 ```

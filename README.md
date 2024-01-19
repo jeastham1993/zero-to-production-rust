@@ -6,9 +6,46 @@ After finishing the book, I decided to take the final application and make it ru
 
 ![](./assets/zero2prod-serverless-architecture.png)
 
+Subscriber data is stored directly in DynamoDB, as well as subscription confirmation tokens. When a confirmation token is stored, a Lambda function listens to the DynamoDB stream and send confirmation emails to users.
+
+When a newsletter issue is sent, newsletter body contents is stored in S3 (to handle large newsletter contents) and a pointer is stored in DynamoDB. A second Lambda function is listening to the DynamoDB stream for Newsletter records to send out newsletter emails. Both email sending functions are in the same Rust application to share the logic for sending emails. Think of this as an email-sending microservice.
+
 ## Distributed Tracing
 
 The application is fully OpenTelemetry compatible, currently configured to export trace data to Jaeger when running locally and to Honeycomb when running in AWS. OpenTelemetry configuration is found in the [telemetry.rs](./src/api/src/telemetry.rs). When running inside Lambda, trace data is flushed using the `force_flush()` function after every request is processed. You can see an example using [Axum Middleware](./src/api/src/middleware.rs) or as part of a [Lambda function handler](./src/backend/src/bin/lambda/send_confirmation.rs). The backend handlers processing the DynamoDB stream also support trace propagation, to continue a trace from the API call through to the backend process.
+
+## Configuration
+
+Application configuration is provided using either environment variables, or configuration YML files. To add configuration, create a folder name `configuration` under `./src/api` and `./src/backend`. The code to load configuration data is found in [configuration.rs](./src/api/src/configuration.rs).
+
+To configure your application, you can use files named:
+
+- base.yaml: Applies to all environments
+- local.yaml: Only applies to local execution
+- production.yaml: Only applies when the container image is built
+
+A complete configuration is found below, you can split up as required.
+
+```yaml
+application:
+  application_port: 8080 # Local port to start on
+  host_name: 0.0.0.0 # Host name to use
+  hmac_secret: "super-long-and-secret-random-key-needed-to-verify-message-integrity"  # Secret key to used for HMAC encryption
+database:
+  database_name: "newsletter" # Name of DynamoDB table for newsletter and subscriber data
+  auth_database_name: "auth" # Name of DynamoDB table for authentication
+  use_local: true # Configure DynamoDB local
+  newsletter_storage_bucket: "james-eastham-newsletter-content" # S3 Bucket name for storing newsletter metadata
+telemetry:
+  otlp_endpoint: "jaeger"  # Endpoint to send OTLP data to, set to Jaeger to use the local Jaeger exporter
+  honeycomb_api_key: "" # API Key if sending trace data to Honeycomb
+  dataset_name: "zero2prod-api" # The trace dataset name
+email_settings:
+  base_url: "https://api.postmarkapp.com" # URL to use for sending emails
+  sender_email: "james.eastham@uppd.co.uk" # Email address to send emails from
+  authorization_token: "7039c7b7-dbf1-41d9-a26c-7586330162dd" # Postmark authentication token
+  timeout_milliseconds: 10000 # Mail server timeout
+```
 
 ## Test
 
@@ -36,4 +73,5 @@ The API and backend are both deployed together in a single CDK stack. This is to
 - [ ] Introduce EventBridge Pipes to decouple DynamoDB stream from backend processors
 - [ ] Introduce SQS to improve durability
 - [ ] Implement StepFunctions to manage email sending, to iterate over list of subscribers
+- [ ] Add SSM for parameter storage
 - [ ] Add CICD pipelines to demonstrate CICD best practices

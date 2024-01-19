@@ -47,6 +47,8 @@ email_settings:
   timeout_milliseconds: 10000 # Mail server timeout
 ```
 
+A future feature is to replace this with AWS System Manager Parameter Store.
+
 ## Test
 
 To test locally first ensure you have Docker up and running. Then:

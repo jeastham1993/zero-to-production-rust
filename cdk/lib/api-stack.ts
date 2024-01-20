@@ -81,6 +81,16 @@ export class NewsletterApi extends Construct {
       description: "This service serves widgets."
     });
 
+    const baseDomain = process.env.BASE_DOMAIN ?? "";
+    const certificateArn = process.env.CERTIFICATE_ARN ?? ""; 
+
+    if (baseDomain.length > 0 && certificateArn.length > 0) {
+      api.addDomainName("main-domain", {
+        domainName: baseDomain,
+        certificate: Certificate.fromCertificateArn(this, "Certificate", certificateArn)
+      })
+    }
+
     const newsletter_app_integration = new LambdaIntegration(api_function, {
       requestTemplates: { "application/json": '{ "statusCode": "200" }' }
     });

@@ -74,6 +74,7 @@ The API and backend are both deployed together in a single CDK stack. This is to
 
 - [X] Introduce EventBridge Pipes to decouple DynamoDB stream from backend processors
 - [X] Introduce SQS to improve durability
+- [ ] Add error handling at integration points (DLQ etc)
 - [ ] Implement StepFunctions to manage email sending, to iterate over list of subscribers
 - [ ] Add SSM for parameter storage
 - [ ] Add CICD pipelines to demonstrate CICD best practices

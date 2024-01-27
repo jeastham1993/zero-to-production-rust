@@ -1,7 +1,7 @@
 import { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Architecture, DockerImageCode, DockerImageFunction, StartingPosition } from 'aws-cdk-lib/aws-lambda';
-import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { DynamoEventSource, SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { CfnPipe } from 'aws-cdk-lib/aws-pipes';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
@@ -65,8 +65,8 @@ export class SendNewsletterProcessingStack extends Construct {
         architecture: Architecture.ARM_64
       });
   
-      send_newsletter_function.addEventSource(new DynamoEventSource(props.newsletterTable, {
-        startingPosition: StartingPosition.TRIM_HORIZON
+      send_newsletter_function.addEventSource(new SqsEventSource(sendNewsletterQueue, {
+        batchSize: 10
       }));
   
       props.newsletterStorageBucket.grantRead(send_newsletter_function);

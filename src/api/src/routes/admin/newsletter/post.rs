@@ -1,4 +1,4 @@
-use crate::routes::{error_chain_fmt};
+use crate::utils::error_chain_fmt;
 use crate::utils::{see_other};
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};

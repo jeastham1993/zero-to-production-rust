@@ -2,7 +2,7 @@ use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
 
-use aws_lambda_events::event::dynamodb::Event;
+use aws_lambda_events::event::sqs::SqsEvent;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_sdk_s3::config::SharedHttpClient;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
@@ -10,7 +10,7 @@ use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{get_configuration, DatabaseSettings, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::telemetry::{get_subscriber, init_tracer, parse_context};
+use backend::telemetry::{get_subscriber, init_tracer, parse_context_from};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
@@ -77,7 +77,7 @@ async fn function_handler<
     TNewsletterStore: NewsletterStore,
     TRepo: SubscriberRepository,
 >(
-    event: LambdaEvent<Event>,
+    event: LambdaEvent<SqsEvent>,
     configuration: &Settings,
     email_client: &TEmail,
     newsletter_store: &TNewsletterStore,
@@ -88,7 +88,7 @@ async fn function_handler<
         let provider = init_tracer(&configuration.telemetry);
         let tracer = &provider.tracer("zero2prod-backend");
 
-        let ctx = match parse_context(&record, "NewsletterIssue").await {
+        let ctx = match parse_context_from(&record).await {
             Ok(res) => res,
             Err(_) => continue,
         };

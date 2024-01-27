@@ -1,6 +1,6 @@
 use crate::authentication::{validate_credentials, Credentials};
 use crate::authentication::{AuthError, UserRepository};
-use crate::routes::subscriptions::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 use crate::session_state::TypedSession;
 use actix_web::error::InternalError;
 use actix_web::http::header::LOCATION;

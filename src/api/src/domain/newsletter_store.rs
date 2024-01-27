@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use crate::domain::newsletter_metadata::NewsletterMetadata;
 
-use crate::routes::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 #[derive(thiserror::Error)]
 pub enum NewsletterStoreError {
     #[error("{0}")]

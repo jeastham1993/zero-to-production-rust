@@ -1,4 +1,4 @@
-use crate::routes::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 use async_trait::async_trait;
 use secrecy::Secret;
 

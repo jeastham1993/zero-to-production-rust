@@ -33,8 +33,6 @@ use std::sync::{Arc};
 
 use aws_sdk_s3::config::{SharedHttpClient};
 
-
-use tonic::codegen::tokio_stream::StreamExt;
 use tracing_actix_web::{RequestId, TracingLogger};
 use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;

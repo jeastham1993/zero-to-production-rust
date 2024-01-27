@@ -2,14 +2,14 @@ use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
 
-use aws_lambda_events::event::dynamodb::Event;
+use aws_lambda_events::event::sqs::SqsEvent;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{get_configuration, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::telemetry::{get_subscriber, init_tracer, parse_context};
+use backend::telemetry::{get_subscriber, init_tracer, parse_context_from};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn function_handler<TEmail: EmailClient>(
-    event: LambdaEvent<Event>,
+    event: LambdaEvent<SqsEvent>,
     configuration: &Settings,
     email_client: &TEmail,
     base_url: &str,
@@ -76,7 +76,7 @@ async fn function_handler<TEmail: EmailClient>(
         let provider = init_tracer(&configuration.telemetry);
         let tracer = &provider.tracer("zero2prod-backend");
 
-        let ctx = match parse_context(&record, "SubscriberToken").await {
+        let ctx = match parse_context_from(&record).await {
             Ok(res) => res,
             Err(_) => continue,
         };
@@ -95,7 +95,7 @@ async fn function_handler<TEmail: EmailClient>(
         match handle_record(&ctx, record, email_client, base_url).await {
             Ok(_) => {}
             Err(e) => {
-                let error_msg = format!("Failure handling DynamoDB stream record. Error: {}", e);
+                let error_msg = format!("Failure handling SQS record. Error: {}", e);
 
                 tracing::error!(error_msg);
             }

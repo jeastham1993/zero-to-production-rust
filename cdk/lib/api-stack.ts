@@ -2,23 +2,18 @@ import * as cdk from 'aws-cdk-lib';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import { AttributeType, BillingMode, ProjectionType, StreamViewType, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { IVpc } from 'aws-cdk-lib/aws-ec2';
-import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
-import { ContainerImage, LogDrivers } from 'aws-cdk-lib/aws-ecs';
-import { ApplicationLoadBalancedFargateService } from 'aws-cdk-lib/aws-ecs-patterns';
-import { Architecture, DockerImageCode, DockerImageFunction, StartingPosition } from 'aws-cdk-lib/aws-lambda';
-import { DynamoEventSource, StreamEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
-import { RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { Architecture, DockerImageCode, DockerImageFunction, IFunction} from 'aws-cdk-lib/aws-lambda';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
-import * as ecs from 'aws-cdk-lib/aws-ecs'
 import { LambdaIntegration, RestApi } from 'aws-cdk-lib/aws-apigateway';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { getParameter } from '@aws-lambda-powertools/parameters/ssm';
 
 export class NewsletterApi extends Construct {
 
   NewsletterTable: Table;
   NewsletterStorageBucket: Bucket;
   ApplicationVpc: IVpc;
+  ApiFunction: IFunction;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -60,7 +55,7 @@ export class NewsletterApi extends Construct {
         removalPolicy: cdk.RemovalPolicy.DESTROY
       });
 
-    const api_function = new DockerImageFunction(this, "ApiFunction", {
+    this.ApiFunction = new DockerImageFunction(this, "ApiFunction", {
       code: DockerImageCode.fromImageAsset("../src/api/", {
         file: "Dockerfile"
       }),
@@ -91,15 +86,15 @@ export class NewsletterApi extends Construct {
       })
     }
 
-    const newsletter_app_integration = new LambdaIntegration(api_function, {
+    const newsletter_app_integration = new LambdaIntegration(this.ApiFunction, {
       requestTemplates: { "application/json": '{ "statusCode": "200" }' }
     });
 
     var proxyResource = api.root.addResource("{proxy+}");
     proxyResource.addMethod("ANY", newsletter_app_integration);
 
-    this.NewsletterTable.grantReadWriteData(api_function);
-    auth_table.grantReadWriteData(api_function);
-    this.NewsletterStorageBucket.grantPut(api_function);
-  }
+    this.NewsletterTable.grantReadWriteData(this.ApiFunction);
+    auth_table.grantReadWriteData(this.ApiFunction);
+    this.NewsletterStorageBucket.grantPut(this.ApiFunction);
+}
 }

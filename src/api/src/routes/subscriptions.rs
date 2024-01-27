@@ -10,6 +10,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
 use tracing::log::info;
+use crate::utils::error_chain_fmt;
 
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
@@ -79,19 +80,6 @@ pub async fn subscribe(
         .context("Failed to store token in the database")?;
 
     Ok(HttpResponse::Ok().finish())
-}
-
-pub fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
 }
 
 fn generate_subscription_token() -> String {

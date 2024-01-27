@@ -9,6 +9,9 @@ use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
 use serde_dynamo::AttributeValue;
 use std::collections::HashMap;
+use aws_lambda_events::sqs::SqsMessage;
+use serde::Deserialize;
+use serde_json::Error;
 
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Subscriber};
@@ -94,44 +97,19 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
     let _ = set_global_default(subscriber);
 }
 
-pub async fn parse_context(
-    record: &EventRecord,
-    for_type: &str,
+
+pub async fn parse_context_from(
+    record: &SqsMessage
 ) -> Result<opentelemetry::Context, ()> {
-    if !record.change.new_image.contains_key("Type") {
-        return Err(());
-    }
+    let message_body: Result<TracedMessage, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
-    let (_, type_value) = record.change.new_image.get_key_value("Type").unwrap();
-
-    let parsed_type_value = match type_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(()),
+    let traced_message = match message_body {
+        Ok(message) => message,
+        Err(_) => return Err(())
     };
 
-    if parsed_type_value != for_type {
-        return Err(());
-    }
-
-    let (_, trace_parent_value) = record
-        .change
-        .new_image
-        .get_key_value("TraceParent")
-        .unwrap();
-    let (_, parent_span_value) = record.change.new_image.get_key_value("ParentSpan").unwrap();
-
-    let trace_parent_value = match trace_parent_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(()),
-    };
-
-    let parent_span_value = match parent_span_value {
-        AttributeValue::S(val) => val,
-        _ => return Err(()),
-    };
-
-    let trace_id = TraceId::from_hex(trace_parent_value).unwrap();
-    let span_id = SpanId::from_hex(parent_span_value).unwrap();
+    let trace_id = TraceId::from_hex(traced_message.trace_parent.as_str()).unwrap();
+    let span_id = SpanId::from_hex(traced_message.parent_span.as_str()).unwrap();
 
     let span_context = SpanContext::new(
         trace_id,
@@ -144,4 +122,10 @@ pub async fn parse_context(
     let ctx = opentelemetry::Context::new().with_remote_span_context(span_context.clone());
 
     Ok(ctx)
+}
+
+#[derive(Deserialize)]
+struct TracedMessage{
+    trace_parent:String,
+    parent_span: String
 }

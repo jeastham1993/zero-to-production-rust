@@ -6,9 +6,9 @@ After finishing the book, I decided to take the final application and make it ru
 
 ![](./assets/zero2prod-serverless-architecture.png)
 
-Subscriber data is stored directly in DynamoDB, as well as subscription confirmation tokens. When a confirmation token is stored, a Lambda function listens to the DynamoDB stream and send confirmation emails to users.
+Subscriber data is stored directly in DynamoDB, as well as subscription confirmation tokens. When a confirmation token is stored, Amazon EventBridge Pipes reads from the DynamoDB stream and stores a message in an Amazon SQS queue. A Lambda function reads from the queue and sends the email to the new subscriber.
 
-When a newsletter issue is sent, newsletter body contents is stored in S3 (to handle large newsletter contents) and a pointer is stored in DynamoDB. A second Lambda function is listening to the DynamoDB stream for Newsletter records to send out newsletter emails. Both email sending functions are in the same Rust application to share the logic for sending emails. Think of this as an email-sending microservice.
+When a newsletter issue is sent, newsletter body contents is stored in S3 (to handle large newsletter contents) and a pointer is stored in DynamoDB.An Amazon EventBridge Pipe is reading from the DynamoDB stream and storing a message in an AmazonSQS queue. A second Lambda function is listening to the queue send out newsletter emails. Both email sending functions are in the same Rust application to share the logic for sending emails. Think of this as an email-sending microservice.
 
 ## Distributed Tracing
 
@@ -72,8 +72,8 @@ The API and backend are both deployed together in a single CDK stack. This is to
 
 ## Future Development
 
-- [ ] Introduce EventBridge Pipes to decouple DynamoDB stream from backend processors
-- [ ] Introduce SQS to improve durability
+- [X] Introduce EventBridge Pipes to decouple DynamoDB stream from backend processors
+- [X] Introduce SQS to improve durability
 - [ ] Implement StepFunctions to manage email sending, to iterate over list of subscribers
 - [ ] Add SSM for parameter storage
 - [ ] Add CICD pipelines to demonstrate CICD best practices

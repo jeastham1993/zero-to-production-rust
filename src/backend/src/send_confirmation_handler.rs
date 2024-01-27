@@ -3,9 +3,12 @@ use crate::domain::subscriber_email::SubscriberEmail;
 use crate::utils::error_chain_fmt;
 use anyhow::Context;
 use aws_lambda_events::dynamodb::EventRecord;
+use aws_lambda_events::sqs::{SqsEvent, SqsMessage};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use serde::Deserialize;
 use serde_dynamo::AttributeValue;
+use serde_json::Error;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(thiserror::Error)]
@@ -22,10 +25,10 @@ impl std::fmt::Debug for EmailSendingError {
     }
 }
 
-#[tracing::instrument(name = "handle_dynamo_db_stream_record", skip(context, email_client))]
+#[tracing::instrument(name = "handle_queued_message", skip(context, email_client))]
 pub async fn handle_record<TEmail: EmailClient>(
     context: &opentelemetry::Context,
-    record: EventRecord,
+    record: SqsMessage,
     email_client: &TEmail,
     base_url: &str,
 ) -> Result<(), EmailSendingError> {
@@ -33,12 +36,12 @@ pub async fn handle_record<TEmail: EmailClient>(
 
     let subscription_token = generate_subscription_token();
 
-    let subscriber_id = get_email_address_from(&record)?;
+    let body = parse_message_body(&record).expect("Failure parsing message");
 
     send_confirmation_email(
         email_client,
-        SubscriberEmail::parse(subscriber_id).unwrap(),
-        &subscription_token,
+        SubscriberEmail::parse(body.email_address).unwrap(),
+        &body.subscriber_token,
         base_url,
     )
     .await
@@ -75,23 +78,13 @@ pub async fn send_confirmation_email(
         .await
 }
 
-fn get_email_address_from(record: &EventRecord) -> Result<String, EmailSendingError> {
-    let (_, type_value) = record
-        .change
-        .new_image
-        .get_key_value("EmailAddress")
-        .unwrap();
+fn parse_message_body(record: &SqsMessage) -> Result<SendConfirmationMessageBody, ()> {
+    let message_body: Result<SendConfirmationMessageBody, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
-    let parsed_type_value = match type_value {
-        AttributeValue::S(val) => val,
-        _ => {
-            return Err(EmailSendingError::ParseEmailError(
-                "Failed to parse email address from DynamoDB item".to_lowercase(),
-            ))
-        }
-    };
-
-    Ok(parsed_type_value.to_string())
+    match message_body {
+        Ok(body) => Ok(body),
+        Err(_) => Err(())
+    }
 }
 
 fn generate_subscription_token() -> String {
@@ -100,4 +93,12 @@ fn generate_subscription_token() -> String {
         .map(char::from)
         .take(25)
         .collect()
+}
+
+#[derive(Deserialize)]
+struct SendConfirmationMessageBody {
+    trace_parent: String,
+    parent_span: String,
+    email_address: String,
+    subscriber_token: String
 }

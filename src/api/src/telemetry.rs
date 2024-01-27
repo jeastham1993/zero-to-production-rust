@@ -141,7 +141,7 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
     }
 
     fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
-        let _currentSpan = tracing::Span::current();
+        let _current_span = tracing::Span::current();
 
         DefaultRootSpanBuilder::on_request_end(span, outcome);
     }

@@ -2,7 +2,7 @@ use crate::domain::new_subscriber::{NewSubscriber};
 
 use async_trait::async_trait;
 
-use crate::routes::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 
 
 #[derive(thiserror::Error)]

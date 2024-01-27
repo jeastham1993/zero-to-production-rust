@@ -2,14 +2,11 @@ use crate::domain::confirmed_subscriber::ConfirmedSubscriber;
 use crate::domain::email_client::EmailClient;
 use crate::domain::newsletter_metadata::NewsletterMetadata;
 use crate::domain::newsletter_store::NewsletterStore;
-use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::utils::error_chain_fmt;
 use anyhow::Context;
-use aws_lambda_events::dynamodb::EventRecord;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use serde_dynamo::AttributeValue;
+use aws_lambda_events::sqs::SqsMessage;
+use serde::Deserialize;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(thiserror::Error)]
@@ -27,7 +24,7 @@ impl std::fmt::Debug for EmailSendingError {
 }
 
 #[tracing::instrument(
-    name = "handle_dynamo_db_stream_record",
+    name = "handle_queued_message",
     skip(context, record, email_client, repo, newsletter_store)
 )]
 pub async fn handle_record<
@@ -36,7 +33,7 @@ pub async fn handle_record<
     TNewsletterStore: NewsletterStore,
 >(
     context: &opentelemetry::Context,
-    record: EventRecord,
+    record: SqsMessage,
     email_client: &TEmail,
     repo: &TRepo,
     newsletter_store: &TNewsletterStore,
@@ -50,12 +47,12 @@ pub async fn handle_record<
 
     tracing::info!("There are {} confirmed subscribers", subscribers.len());
 
-    let newsletter_data_path = parse_object_path(&record).unwrap();
+    let newsletter_data_path = parse_message_body(&record).unwrap();
 
-    tracing::info!("Newsletter data path is {}", &newsletter_data_path);
+    tracing::info!("Newsletter data path is {}", &newsletter_data_path.s3_pointer);
 
     let newsletter_information = newsletter_store
-        .retrieve_newsletter(newsletter_data_path.as_str())
+        .retrieve_newsletter(newsletter_data_path.s3_pointer.as_str())
         .await
         .context("Failure retrieving metadata informationx")?;
 
@@ -104,11 +101,19 @@ async fn send_email<TEmail: EmailClient>(
     Ok(())
 }
 
-fn parse_object_path(record: &EventRecord) -> Result<String, ()> {
-    let (_, type_value) = record.change.new_image.get_key_value("S3Pointer").unwrap();
+fn parse_message_body(record: &SqsMessage) -> Result<SendNewsletterMessageBody, ()> {
+    let message_body: Result<SendNewsletterMessageBody, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
-    match type_value {
-        AttributeValue::S(val) => Ok(val.clone()),
-        _ => return Err(()),
+    match message_body {
+        Ok(body) => Ok(body),
+        Err(_) => Err(())
     }
+}
+
+#[derive(Deserialize)]
+struct SendNewsletterMessageBody {
+    trace_parent: String,
+    parent_span: String,
+    issue_title: String,
+    s3_pointer: String
 }

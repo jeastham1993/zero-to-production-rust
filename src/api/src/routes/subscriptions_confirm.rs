@@ -1,5 +1,5 @@
 use crate::domain::subscriber_repository::SubscriberRepository;
-use crate::routes::subscriptions::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
 use reqwest::StatusCode;

@@ -3,9 +3,9 @@ use crate::domain::newsletter_store::{NewsletterStore, NewsletterStoreError};
 use anyhow::Context;
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
+use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
-use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
 use serde::Serialize;
 
 pub struct S3NewsletterMetadataStorage {
@@ -49,10 +49,12 @@ impl NewsletterStore for S3NewsletterMetadataStorage {
             }
             Err(s3_error) => {
                 match s3_error.into_service_error() {
-                    GetObjectError::InvalidObjectState(_) => tracing::error!("Invalid object state"),
+                    GetObjectError::InvalidObjectState(_) => {
+                        tracing::error!("Invalid object state")
+                    }
                     GetObjectError::NoSuchKey(_) => tracing::error!("No such key"),
-                    GetObjectError::Unhandled(e)  => tracing::error!("Unhandled error"),
-                    _  => tracing::error!("Unknown error"),
+                    GetObjectError::Unhandled(e) => tracing::error!("Unhandled error"),
+                    _ => tracing::error!("Unknown error"),
                 }
 
                 Err(NewsletterStoreError::IssueExists("Error".to_string()))

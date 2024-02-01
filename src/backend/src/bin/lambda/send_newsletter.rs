@@ -27,8 +27,8 @@ use backend::send_newsletter_handler::handle_record;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let configuration = get_configuration().expect("Failed to read configuration");
-    
+    let configuration = get_configuration().await.expect("Failed to read configuration");
+
     let email_adapter = PostmarkEmailClient::new(
         configuration.email_settings.base_url.clone(),
         SubscriberEmail::parse(configuration.email_settings.sender_email.clone()).unwrap(),
@@ -152,8 +152,15 @@ async fn configure_s3(
         .build()
 }
 
-async fn configure_dynamo(hyper_client: &SharedHttpClient, db_settings: &DatabaseSettings) -> aws_sdk_dynamodb::Config {
-    let region = RegionProviderChain::default_provider().or_else(Region::new("us-east-1")).region().await.unwrap();
+async fn configure_dynamo(
+    hyper_client: &SharedHttpClient,
+    db_settings: &DatabaseSettings,
+) -> aws_sdk_dynamodb::Config {
+    let region = RegionProviderChain::default_provider()
+        .or_else(Region::new("us-east-1"))
+        .region()
+        .await
+        .unwrap();
 
     let credentials = DefaultCredentialsChain::builder()
         .region(region.clone())

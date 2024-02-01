@@ -25,7 +25,6 @@ tracing-opentelemetry = { version="0.22", features = ["tracing-log", "async-trai
 tonic = "0.10.2"
 secrecy = { version = "0.8", features = ["serde"] }
 opentelemetry = { version = "0.21.0", features = ["trace"] }
-# Updating to 0.11 requires protoc installed but 0.10 fortunately does not
 opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
 opentelemetry-semantic-conventions = "0.13.0"
 opentelemetry_sdk = { version = "0.21.1", features = ["rt-tokio", "rt-tokio-current-thread"] }
@@ -48,6 +47,7 @@ actix-session = { version = "0.8", features = ["redis-rs-tls-session"] }
 actix-web-lab = "0.20"
 aws-sdk-dynamodb = "1"
 aws-sdk-s3 = "1"
+aws-sdk-ssm = "1"
 aws-config = "1"
 aws-smithy-runtime = "1"
 hyper = {version="1.1.0", features=["client"]}

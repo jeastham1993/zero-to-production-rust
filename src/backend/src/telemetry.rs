@@ -1,5 +1,6 @@
 use crate::configuration::TelemetrySettings;
 use aws_lambda_events::dynamodb::EventRecord;
+use aws_lambda_events::sqs::SqsMessage;
 use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
@@ -7,11 +8,10 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{config, Config, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
 use secrecy::ExposeSecret;
-use serde_dynamo::AttributeValue;
-use std::collections::HashMap;
-use aws_lambda_events::sqs::SqsMessage;
 use serde::Deserialize;
+use serde_dynamo::AttributeValue;
 use serde_json::Error;
+use std::collections::HashMap;
 
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Subscriber};
@@ -97,15 +97,13 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
     let _ = set_global_default(subscriber);
 }
 
-
-pub async fn parse_context_from(
-    record: &SqsMessage
-) -> Result<opentelemetry::Context, ()> {
-    let message_body: Result<TracedMessage, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
+pub async fn parse_context_from(record: &SqsMessage) -> Result<opentelemetry::Context, ()> {
+    let message_body: Result<TracedMessage, serde_json::Error> =
+        serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
     let traced_message = match message_body {
         Ok(message) => message,
-        Err(_) => return Err(())
+        Err(_) => return Err(()),
     };
 
     let trace_id = TraceId::from_hex(traced_message.trace_parent.as_str()).unwrap();
@@ -125,7 +123,7 @@ pub async fn parse_context_from(
 }
 
 #[derive(Deserialize)]
-struct TracedMessage{
-    trace_parent:String,
-    parent_span: String
+struct TracedMessage {
+    trace_parent: String,
+    parent_span: String,
 }

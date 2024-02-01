@@ -79,11 +79,12 @@ pub async fn send_confirmation_email(
 }
 
 fn parse_message_body(record: &SqsMessage) -> Result<SendConfirmationMessageBody, ()> {
-    let message_body: Result<SendConfirmationMessageBody, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
+    let message_body: Result<SendConfirmationMessageBody, serde_json::Error> =
+        serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
     match message_body {
         Ok(body) => Ok(body),
-        Err(_) => Err(())
+        Err(_) => Err(()),
     }
 }
 
@@ -100,5 +101,5 @@ struct SendConfirmationMessageBody {
     trace_parent: String,
     parent_span: String,
     email_address: String,
-    subscriber_token: String
+    subscriber_token: String,
 }

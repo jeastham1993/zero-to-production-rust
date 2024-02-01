@@ -1,11 +1,8 @@
 use crate::adapters::dynamo_db_session_store::DynamoDbSessionStore;
 use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
 use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
-use crate::adapters::postmark_email_client::PostmarkEmailClient;
 use crate::authentication::{reject_anonymous_users, UserRepository};
-use crate::configuration::{DatabaseSettings, EmailClientSettings, Settings, TelemetrySettings};
-use crate::domain::email_client::EmailClient;
-use crate::domain::subscriber_email::SubscriberEmail;
+use crate::configuration::{DatabaseSettings, Settings, TelemetrySettings};
 use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::routes::{
     admin_dashboard, change_password, change_password_form, confirm, health_check, home, log_out,
@@ -56,7 +53,6 @@ impl Application {
         let server = run(
             listener,
             configuration.database,
-            configuration.email_settings,
             configuration.application.base_url,
             configuration.application.hmac_secret,
             &configuration.telemetry
@@ -71,6 +67,7 @@ impl Application {
     }
 
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
+        tracing::info!("Running until stopped");
         self.server.await
     }
 }
@@ -78,7 +75,6 @@ impl Application {
 async fn run(
     listener: TcpListener,
     db_settings: DatabaseSettings,
-    email_settings: EmailClientSettings,
     base_url: String,
     hmac_secret: Secret<String>,
     telemetry: &TelemetrySettings
@@ -93,13 +89,6 @@ async fn run(
         .use_dynamo_db_local(db_settings.use_local)
         .build()
         .await?;
-
-    let email_adapter = PostmarkEmailClient::new(
-        email_settings.base_url.clone(),
-        SubscriberEmail::parse(email_settings.sender_email.clone()).unwrap(),
-        email_settings.authorization_token.clone(),
-        email_settings.timeout(),
-    );
 
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
@@ -143,9 +132,6 @@ async fn run(
 
         let user_repo_arc: Arc<dyn UserRepository> = Arc::new(user_repo);
         let user_repo_data: Data<dyn UserRepository> = Data::from(user_repo_arc);
-
-        let email_client_arc: Arc<dyn EmailClient> = Arc::new(email_adapter.clone());
-        let email_client_data: Data<dyn EmailClient> = Data::from(email_client_arc.clone());
 
         let newsletter_store_arc: Arc<dyn NewsletterStore> = Arc::new(newsletter_store);
         let newsletter_store_data: Data<dyn NewsletterStore> = Data::from(newsletter_store_arc);
@@ -199,13 +185,11 @@ async fn run(
             .route("/util/_migrate", web::get().to(migrate_db))
             .app_data(store_data)
             .app_data(user_repo_data)
-            .app_data(email_client_data)
             .app_data(newsletter_store_data)
             .app_data(base_url.clone())
             .app_data(Data::new(HmacSecret(hmac_secret.clone())))
             .app_data(tracer_data)
     })
-    .workers(1)
     .listen(listener)?
     .run();
 

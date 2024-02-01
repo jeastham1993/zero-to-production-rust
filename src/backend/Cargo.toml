@@ -37,6 +37,7 @@ base64 = "0.21.5"
 uuid = { version = "1", features = ["v4", "serde"] }
 argon2 = { version = "0.5", features = ["std"] }
 aws-sdk-dynamodb = "1"
+aws-sdk-ssm = "1"
 aws-sdk-s3 = "1"
 aws-config = "1"
 aws-smithy-runtime = "1"

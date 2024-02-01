@@ -1,3 +1,4 @@
+import { RustFunction } from '@cdklabs/aws-lambda-rust';
 import { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Architecture, DockerImageCode, DockerImageFunction } from 'aws-cdk-lib/aws-lambda';
@@ -5,11 +6,13 @@ import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { CfnPipe } from 'aws-cdk-lib/aws-pipes';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 export interface NewSubscriberProcessingStackProps {
     newsletterTable: ITable,
-    newsletterStorageBucket: IBucket
+    newsletterStorageBucket: IBucket,
+    configParameter: StringParameter
 }
 
 export class NewSubscriberProcessingStack extends Construct {
@@ -54,15 +57,21 @@ export class NewSubscriberProcessingStack extends Construct {
         }
       })
   
-      const send_confirmation_function = new DockerImageFunction(this, "SendConfirmationFunction", {
-        code: DockerImageCode.fromImageAsset("../src/backend/", {
-          file: "Dockerfile-SendConfirmation"
-        }),
-        architecture: Architecture.ARM_64
+      const send_confirmation_function = new RustFunction(this, "ConfirmationFunction", {
+        entry: '../src/backend/Cargo.toml',
+        binaryName: 'send_confirmation',
+        architecture: Architecture.ARM_64,
+        environment: {
+          LOG_LEVEL: "error",
+          CONFIG_PARAMETER_NAME: props.configParameter.parameterName,
+          APP_ENVIRONMENT: "production"
+        },
       });
   
       send_confirmation_function.addEventSource(new SqsEventSource(new_subscriber_queue, {
         batchSize: 10
       }));
+
+      props.configParameter.grantRead(send_confirmation_function);
 }
 }

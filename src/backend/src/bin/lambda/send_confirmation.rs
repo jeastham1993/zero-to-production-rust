@@ -22,7 +22,7 @@ use backend::send_confirmation_handler::handle_record;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let configuration = get_configuration().expect("Failed to read configuration");
+    let configuration = get_configuration().await.expect("Failed to read configuration");
 
     let region = make_region_provider().region().await.unwrap();
     let credentials = DefaultCredentialsChain::builder()

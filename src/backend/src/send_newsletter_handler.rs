@@ -40,6 +40,32 @@ pub async fn handle_record<
 ) -> Result<(), EmailSendingError> {
     tracing::Span::current().set_parent(context.clone());
 
+    let newsletter_data_path = parse_message_body(&record).unwrap();
+
+    tracing::info!(
+        "Newsletter data path is {}",
+        &newsletter_data_path.s3_pointer
+    );
+
+    let newsletter_information = newsletter_store
+        .retrieve_newsletter(newsletter_data_path.s3_pointer.as_str())
+        .await
+        .context("Failure retrieving metadata informationx")?;
+
+    let send_res = send_emails_to_subscribers(email_client, repo, &newsletter_information).await;
+
+    Ok(())
+}
+
+#[tracing::instrument(
+name = "send_emails_to_subscribers",
+skip(email_client, repo, newsletter_information)
+)]
+async fn send_emails_to_subscribers<TEmail: EmailClient, TRepo: SubscriberRepository>(
+    email_client: &TEmail,
+    repo: &TRepo,
+    newsletter_information: &NewsletterMetadata,
+) -> Result<(), anyhow::Error> {
     let subscribers = repo
         .get_confirmed_subscribers()
         .await
@@ -47,21 +73,12 @@ pub async fn handle_record<
 
     tracing::info!("There are {} confirmed subscribers", subscribers.len());
 
-    let newsletter_data_path = parse_message_body(&record).unwrap();
-
-    tracing::info!("Newsletter data path is {}", &newsletter_data_path.s3_pointer);
-
-    let newsletter_information = newsletter_store
-        .retrieve_newsletter(newsletter_data_path.s3_pointer.as_str())
-        .await
-        .context("Failure retrieving metadata informationx")?;
-
     for subscriber in subscribers {
         match subscriber {
             Ok(subscriber) => {
                 tracing::info!("Sending email to {}", &subscriber.email.to_string());
 
-                send_email(email_client, &subscriber, &newsletter_information)
+                send_email(email_client, &subscriber, newsletter_information)
                     .await
                     .with_context(|| {
                         format!("Failed to send newsletter issue to {}", subscriber.email)
@@ -80,9 +97,7 @@ pub async fn handle_record<
     Ok(())
 }
 
-#[tracing::instrument(
-skip(email_client, subscriber, newsletter_information)
-)]
+#[tracing::instrument(skip(email_client, subscriber, newsletter_information))]
 async fn send_email<TEmail: EmailClient>(
     email_client: &TEmail,
     subscriber: &ConfirmedSubscriber,
@@ -102,11 +117,12 @@ async fn send_email<TEmail: EmailClient>(
 }
 
 fn parse_message_body(record: &SqsMessage) -> Result<SendNewsletterMessageBody, ()> {
-    let message_body: Result<SendNewsletterMessageBody, serde_json::Error> = serde_json::from_str(record.body.as_ref().unwrap().as_str());
+    let message_body: Result<SendNewsletterMessageBody, serde_json::Error> =
+        serde_json::from_str(record.body.as_ref().unwrap().as_str());
 
     match message_body {
         Ok(body) => Ok(body),
-        Err(_) => Err(())
+        Err(_) => Err(()),
     }
 }
 
@@ -115,5 +131,5 @@ struct SendNewsletterMessageBody {
     trace_parent: String,
     parent_span: String,
     issue_title: String,
-    s3_pointer: String
+    s3_pointer: String,
 }

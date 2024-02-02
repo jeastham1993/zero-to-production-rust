@@ -9,6 +9,7 @@ use aws_sdk_dynamodb::types::{
     KeyType, Projection, ProjectionType,
 };
 use aws_sdk_dynamodb::Client;
+use opentelemetry::trace::TracerProvider;
 
 use tracing::log::info;
 use uuid::Uuid;
@@ -16,7 +17,7 @@ use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::subscriber_email::SubscriberEmail;
 use zero2prod::startup::Application;
-use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
+use telemetry::{get_subscriber, init_subscriber, init_tracer};
 
 /// Confirmation links embedded in the request to the email API.
 pub struct ConfirmationLinks {
@@ -250,7 +251,9 @@ pub async fn spawn_app() -> TestApp {
     // Create and migrate the database
     let dynamo_db_client = configure_database(&configuration.database).await;
 
-    let tracer = init_tracer(&configuration.telemetry);
+    let provider = init_tracer(&configuration.telemetry);
+    let tracer = &provider.tracer("zero2prod-api");
+
     let subscriber = get_subscriber(
         configuration.telemetry.dataset_name.clone(),
         "info".into(),

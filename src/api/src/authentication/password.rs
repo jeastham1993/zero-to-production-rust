@@ -1,5 +1,5 @@
 use crate::authentication::{UserAuthenticationError, UserRepository};
-use crate::telemetry::spawn_blocking_with_tracing;
+use telemetry::{spawn_blocking_with_tracing};
 use anyhow::Context;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};

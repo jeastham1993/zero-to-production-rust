@@ -1,63 +1,25 @@
-use crate::configuration::TelemetrySettings;
-use actix_web::body::MessageBody;
-use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::rt::task::JoinHandle;
-use actix_web::Error;
-use opentelemetry::trace::{TraceContextExt, TracerProvider as _};
+use aws_lambda_events::sqs::SqsMessage;
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{config, Config, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
+use serde::Deserialize;
+use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};
 use std::collections::HashMap;
-
-use std::sync::{Arc, Mutex};
-
+use actix_web::body::MessageBody;
+use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::rt::task::JoinHandle;
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Span, Subscriber};
-use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
-
-pub static FOO: Option<Arc<Mutex<opentelemetry_sdk::trace::TracerProvider>>> = None;
-
-/// Compose multiple layers into a tracing subscriber.
-pub fn get_subscriber<Sink>(
-    name: String,
-    env_filter: String,
-    sink: Sink,
-    config: &TelemetrySettings,
-    trace_provider: &TracerProvider,
-) -> impl Subscriber + Send + Sync
-where
-    Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
-{
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
-    let formatting_layer = BunyanFormattingLayer::new(name, sink);
-
-    Registry::default()
-        .with(env_filter)
-        .with(JsonStorageLayer)
-        .with(formatting_layer)
-        .with(tracing_subscriber::fmt::Layer::default())
-        .with(
-            tracing_opentelemetry::layer()
-                .with_tracer(trace_provider.tracer(config.dataset_name.clone())),
-        )
-        .with(LevelFilter::DEBUG)
-}
-
-pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
-    let _ = LogTracer::init();
-    global::set_text_map_propagator(TraceContextPropagator::new());
-
-    let _ = set_global_default(subscriber);
-}
+use actix_web::Error;
 
 pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
     let span_exporter = match trace_config.otlp_endpoint.as_str() {
@@ -105,6 +67,62 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
         .build()
 }
 
+/// Compose multiple layers into a tracing subscriber.
+pub fn get_subscriber<Sink>(
+    name: String,
+    env_filter: String,
+    sink: Sink,
+    _config: &TelemetrySettings,
+    tracer: &opentelemetry_sdk::trace::Tracer,
+) -> impl Subscriber + Send + Sync
+    where
+        Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
+    let formatting_layer = BunyanFormattingLayer::new(name, sink);
+
+    Registry::default()
+        .with(env_filter)
+        .with(JsonStorageLayer)
+        .with(formatting_layer)
+        .with(tracing_subscriber::fmt::Layer::default())
+        .with(tracing_opentelemetry::layer().with_tracer(tracer.clone()))
+        .with(LevelFilter::DEBUG)
+}
+
+pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
+    let _ = LogTracer::init();
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let _ = set_global_default(subscriber);
+}
+
+pub async fn parse_context_from(record: &SqsMessage) -> Result<opentelemetry::Context, ()> {
+    let message_body: Result<TracedMessage, serde_json::Error> =
+        serde_json::from_str(record.body.as_ref().unwrap().as_str());
+
+    let traced_message = match message_body {
+        Ok(message) => message,
+        Err(_) => return Err(()),
+    };
+
+    let trace_id = TraceId::from_hex(traced_message.trace_parent.as_str()).unwrap();
+    let span_id = SpanId::from_hex(traced_message.parent_span.as_str()).unwrap();
+
+    let span_context = SpanContext::new(
+        trace_id,
+        span_id,
+        TraceFlags::SAMPLED,
+        false,
+        TraceState::NONE,
+    );
+
+    let ctx = opentelemetry::Context::new().with_remote_span_context(span_context.clone());
+
+    Ok(ctx)
+}
+
 pub fn get_trace_and_span_id() -> Option<(String, String)> {
     // Access the current span
     let current_span = Span::current();
@@ -147,10 +165,23 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
 }
 
 pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
-where
-    F: FnOnce() -> R + Send + 'static,
-    R: Send + 'static,
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
 {
     let current_span = tracing::Span::current();
     actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
+}
+
+#[derive(Deserialize)]
+struct TracedMessage {
+    trace_parent: String,
+    parent_span: String,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TelemetrySettings {
+    pub otlp_endpoint: String,
+    pub honeycomb_api_key: Secret<String>,
+    pub dataset_name: String,
 }

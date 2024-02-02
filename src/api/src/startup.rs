@@ -2,20 +2,19 @@ use crate::adapters::dynamo_db_session_store::DynamoDbSessionStore;
 use crate::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
 use crate::adapters::dynamodb_user_repository::DynamoDbUserRepository;
 use crate::authentication::{reject_anonymous_users, UserRepository};
-use crate::configuration::{DatabaseSettings, Settings, TelemetrySettings};
+use crate::configuration::{DatabaseSettings, Settings};
 use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::routes::{
     admin_dashboard, change_password, change_password_form, confirm, health_check, home, log_out,
     login, login_form, migrate_db, publish_newsletter, publish_newsletter_form, subscribe,
 };
-use crate::telemetry::{get_subscriber, init_subscriber, init_tracer, CustomLevelRootSpanBuilder};
 use actix_session::SessionMiddleware;
 use actix_web::cookie::Key;
 use actix_web::dev::{Server, Service};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
-
+use opentelemetry::trace::TracerProvider;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
@@ -33,6 +32,7 @@ use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;
 use crate::middleware::TraceData;
 use tracing_actix_web::{RequestId, TracingLogger};
+use telemetry::{init_tracer, get_subscriber, init_subscriber, TelemetrySettings, CustomLevelRootSpanBuilder};
 
 pub struct ApplicationBaseUrl(pub String);
 
@@ -91,7 +91,8 @@ async fn run(
 
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
-    let tracer = init_tracer(telemetry);
+    let provider = init_tracer(telemetry);
+    let tracer = &provider.tracer("zero2prod-api");
     let subscriber = get_subscriber(
         telemetry.dataset_name.clone(),
         "info".into(),

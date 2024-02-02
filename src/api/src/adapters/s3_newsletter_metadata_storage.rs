@@ -1,5 +1,5 @@
 use crate::domain::{NewsletterMetadata, NewsletterStore, NewsletterStoreError};
-use crate::telemetry::get_trace_and_span_id;
+use telemetry::get_trace_and_span_id;
 use anyhow::Context;
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;

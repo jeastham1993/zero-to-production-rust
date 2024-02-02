@@ -7,6 +7,7 @@ use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use config::FileFormat;
 use secrecy::Secret;
 use serde::Deserialize;
+use telemetry::TelemetrySettings;
 
 #[derive(Deserialize, Clone)]
 pub struct Settings {
@@ -21,13 +22,6 @@ pub struct ApplicationSettings {
     pub host_name: String,
     pub base_url: String,
     pub hmac_secret: Secret<String>,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct TelemetrySettings {
-    pub otlp_endpoint: String,
-    pub honeycomb_api_key: Secret<String>,
-    pub dataset_name: String,
 }
 
 #[derive(Deserialize, Clone)]

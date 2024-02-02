@@ -9,7 +9,8 @@ use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{get_configuration, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::telemetry::{get_subscriber, init_tracer, parse_context_from};
+use backend::telemetry::{parse_context_from};
+use telemetry::{init_tracer, get_subscriber};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;

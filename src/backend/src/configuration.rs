@@ -6,8 +6,9 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
 use config::FileFormat;
 use aws_sdk_ssm::Client;
-use aws_sdk_ssm::config::{SharedHttpClient, ProvideCredentials};
+use aws_sdk_ssm::config::ProvideCredentials;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
+use telemetry::TelemetrySettings;
 
 #[derive(Deserialize, Clone)]
 pub struct Settings {
@@ -15,13 +16,6 @@ pub struct Settings {
     pub telemetry: TelemetrySettings,
     pub email_settings: EmailClientSettings,
     pub base_url: String,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct TelemetrySettings {
-    pub otlp_endpoint: String,
-    pub honeycomb_api_key: Secret<String>,
-    pub dataset_name: String,
 }
 
 #[derive(Deserialize, Clone)]

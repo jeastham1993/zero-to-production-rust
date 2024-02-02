@@ -1,6 +1,6 @@
 use crate::authentication::{compute_password_hash, UserAuthenticationError, UserRepository};
 
-use crate::telemetry::spawn_blocking_with_tracing;
+use telemetry::spawn_blocking_with_tracing;
 use anyhow::{Context, Error};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;

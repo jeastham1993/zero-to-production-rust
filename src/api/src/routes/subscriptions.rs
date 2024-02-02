@@ -1,7 +1,7 @@
 use crate::domain::new_subscriber::NewSubscriber;
 use crate::domain::subscriber_email::SubscriberEmail;
 use crate::domain::subscriber_name::SubscriberName;
-use crate::domain::subscriber_repository::{SubscriberRepository};
+use crate::domain::subscriber_repository::SubscriberRepository;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
@@ -9,8 +9,8 @@ use anyhow::Context;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
-use tracing::log::info;
 use crate::utils::error_chain_fmt;
+use tracing::log::info;
 
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
@@ -63,7 +63,7 @@ impl TryFrom<FormData> for NewSubscriber {
 )]
 pub async fn subscribe(
     form: web::Form<FormData>,
-    repo: web::Data<dyn SubscriberRepository>,
+    repo: web::Data<dyn SubscriberRepository + Send + Sync>,
 ) -> Result<HttpResponse, SubscribeError> {
     let new_subscriber: NewSubscriber =
         form.0.try_into().map_err(SubscribeError::ValidationError)?;

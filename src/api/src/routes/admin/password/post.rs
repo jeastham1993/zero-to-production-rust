@@ -13,7 +13,7 @@ pub struct FormData {
 
 pub async fn change_password(
     form: web::Form<FormData>,
-    user_repo: web::Data<dyn UserRepository>,
+    user_repo: web::Data<dyn UserRepository + Send + Sync>,
     user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let user_id = user_id.into_inner();

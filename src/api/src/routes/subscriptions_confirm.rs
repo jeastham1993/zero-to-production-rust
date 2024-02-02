@@ -32,14 +32,10 @@ impl ResponseError for ConfirmationError {
     }
 }
 
-#[tracing::instrument(
-    name = "confirm_subscriber",
-    skip(parameters, repo),
-    fields()
-)]
+#[tracing::instrument(name = "confirm_subscriber", skip(parameters, repo), fields())]
 pub async fn confirm(
     parameters: web::Query<Parameters>,
-    repo: web::Data<dyn SubscriberRepository>,
+    repo: web::Data<dyn SubscriberRepository + Send + Sync>,
 ) -> Result<HttpResponse, ConfirmationError> {
     let id = repo
         .get_subscriber_id_from_token(&parameters.subscription_token)

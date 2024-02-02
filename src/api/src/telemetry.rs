@@ -14,7 +14,6 @@ use std::collections::HashMap;
 
 use std::sync::{Arc, Mutex};
 
-
 use tracing::subscriber::set_global_default;
 use tracing::{level_filters::LevelFilter, Span, Subscriber};
 use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};

@@ -1,4 +1,3 @@
-
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use async_trait::async_trait;
@@ -11,12 +10,10 @@ use aws_sdk_dynamodb::types::{
 };
 use aws_sdk_dynamodb::Client;
 
-
 use tracing::log::info;
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::domain::email_client::EmailClient;
 use zero2prod::domain::subscriber_email::SubscriberEmail;
 use zero2prod::startup::Application;
 use zero2prod::telemetry::{get_subscriber, init_subscriber, init_tracer};
@@ -50,7 +47,10 @@ impl TestApp {
 
     pub async fn confirm_subscription(&self, token: String) -> reqwest::Response {
         reqwest::Client::new()
-            .get(&format!("{}/subscriptions/confirm?subscription_token={}", &self.address, token))
+            .get(&format!(
+                "{}/subscriptions/confirm?subscription_token={}",
+                &self.address, token
+            ))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .send()
             .await
@@ -69,9 +69,9 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn get_token_for_email(&self, _email_address: &str) -> String
-    {
-        let scan_results: Result<Vec<_>, _> = self.dynamo_db_client
+    pub async fn get_token_for_email(&self, _email_address: &str) -> String {
+        let scan_results: Result<Vec<_>, _> = self
+            .dynamo_db_client
             .scan()
             .table_name(&self.table_name)
             .limit(5)
@@ -96,8 +96,9 @@ impl TestApp {
         token.to_string()
     }
 
-    pub async fn validate_newsletter_storage(&self, title: &str) -> Result<(), ()>{
-        let get_res = self.dynamo_db_client
+    pub async fn validate_newsletter_storage(&self, title: &str) -> Result<(), ()> {
+        let get_res = self
+            .dynamo_db_client
             .get_item()
             .table_name(&self.table_name)
             .key("PK", AttributeValue::S(title.to_string()))
@@ -105,13 +106,11 @@ impl TestApp {
             .await;
 
         match get_res {
-            Ok(res) => {
-                match res.item {
-                    None => Err(()),
-                    Some(_) => Ok(())
-                }
+            Ok(res) => match res.item {
+                None => Err(()),
+                Some(_) => Ok(()),
             },
-            Err(_) => Err(())
+            Err(_) => Err(()),
         }
     }
 
@@ -234,15 +233,15 @@ pub async fn spawn_app() -> TestApp {
 
     // Randomise configuration to ensure test isolation
     let configuration = {
-        let mut c = get_configuration().expect("Failed to read configuration.");
+        let mut c = get_configuration()
+            .await
+            .expect("Failed to read configuration.");
         // Use a different database for each test case
         c.database.database_name = Uuid::new_v4().to_string();
         c.database.auth_database_name = Uuid::new_v4().to_string();
         c.database.use_local = true;
         // Use a random OS port
         c.application.application_port = 0;
-        // Use the mock server as email API
-        c.email_settings.base_url = email_server.uri();
         c.telemetry.otlp_endpoint = "jaeger".to_string();
         c.telemetry.dataset_name = "test-zero2prod".to_string();
         c
@@ -440,20 +439,4 @@ impl TestUser {
 pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
     assert_eq!(response.status().as_u16(), 303);
     assert_eq!(response.headers().get("Location").unwrap(), location);
-}
-
-pub struct TestEmailClient {}
-
-#[async_trait]
-impl EmailClient for TestEmailClient {
-    async fn send_email_to(
-        &self,
-        recipient: &SubscriberEmail,
-        _subject: &str,
-        _html_content: &str,
-        _text_content: &str,
-    ) -> Result<(), reqwest::Error> {
-        info!("Sending email to {}", recipient.inner());
-        Ok(())
-    }
 }

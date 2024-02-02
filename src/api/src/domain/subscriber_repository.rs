@@ -1,9 +1,8 @@
-use crate::domain::new_subscriber::{NewSubscriber};
+use crate::domain::new_subscriber::NewSubscriber;
 
 use async_trait::async_trait;
 
 use crate::utils::error_chain_fmt;
-
 
 #[derive(thiserror::Error)]
 pub enum DatabaseError {

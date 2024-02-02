@@ -1,10 +1,10 @@
+use crate::domain::{NewsletterMetadata, NewsletterStore};
 use crate::utils::error_chain_fmt;
-use crate::utils::{see_other};
+use crate::utils::see_other;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
-use crate::domain::{NewsletterMetadata, NewsletterStore};
 
 #[derive(thiserror::Error)]
 pub enum PublishNewsletterError {
@@ -32,15 +32,17 @@ pub struct FormData {
     html_content: String,
 }
 
-#[tracing::instrument(
-skip(form, newsletter_store),
-)]
+#[tracing::instrument(skip(form, newsletter_store))]
 pub async fn publish_newsletter(
     form: web::Form<FormData>,
-    newsletter_store: web::Data<dyn NewsletterStore>
+    newsletter_store: web::Data<dyn NewsletterStore + Send + Sync>,
 ) -> Result<HttpResponse, PublishNewsletterError> {
     newsletter_store
-        .store_newsletter_metadata(NewsletterMetadata::new(&form.title, &form.text_content, &form.html_content))
+        .store_newsletter_metadata(NewsletterMetadata::new(
+            &form.title,
+            &form.text_content,
+            &form.html_content,
+        ))
         .await
         .context("Failure storing newsletter data")?;
 

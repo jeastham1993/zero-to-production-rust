@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::domain::newsletter_metadata::NewsletterMetadata;
+use async_trait::async_trait;
 
 use crate::utils::error_chain_fmt;
 #[derive(thiserror::Error)]
@@ -18,5 +18,8 @@ impl std::fmt::Debug for NewsletterStoreError {
 
 #[async_trait]
 pub trait NewsletterStore {
-    async fn store_newsletter_metadata(&self, metadata: NewsletterMetadata) -> Result<String, NewsletterStoreError>;
+    async fn store_newsletter_metadata(
+        &self,
+        metadata: NewsletterMetadata,
+    ) -> Result<String, NewsletterStoreError>;
 }

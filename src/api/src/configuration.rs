@@ -1,12 +1,12 @@
-use secrecy::Secret;
-use serde::Deserialize;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
-use aws_sdk_ssm::Client;
 use aws_sdk_ssm::config::ProvideCredentials;
+use aws_sdk_ssm::Client;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use config::FileFormat;
+use secrecy::Secret;
+use serde::Deserialize;
 
 #[derive(Deserialize, Clone)]
 pub struct Settings {
@@ -35,7 +35,7 @@ pub struct DatabaseSettings {
     pub database_name: String,
     pub auth_database_name: String,
     pub use_local: bool,
-    pub newsletter_storage_bucket: String
+    pub newsletter_storage_bucket: String,
 }
 
 pub async fn get_configuration() -> Result<Settings, config::ConfigError> {
@@ -70,12 +70,13 @@ pub async fn get_configuration() -> Result<Settings, config::ConfigError> {
                 .build()?;
 
             settings.try_deserialize::<Settings>()
-        },
+        }
         Environment::Production => {
             let ssm = configure_ssm().await;
             let ssm_client = Client::from_conf(ssm);
 
-            let parameter = ssm_client.get_parameter()
+            let parameter = ssm_client
+                .get_parameter()
                 .name(std::env::var("CONFIG_PARAMETER_NAME").unwrap())
                 .send()
                 .await
@@ -83,20 +84,21 @@ pub async fn get_configuration() -> Result<Settings, config::ConfigError> {
 
             // Init configuration reader
             let settings = config::Config::builder()
-            .add_source(config::File::from_str(parameter.parameter.unwrap().value.unwrap().as_str(), FileFormat::Yaml))
-            .add_source(
-                config::Environment::with_prefix("APP")
-                    .prefix_separator("_")
-                    .separator("__"),
-            )
-            .build()?;
+                .add_source(config::File::from_str(
+                    parameter.parameter.unwrap().value.unwrap().as_str(),
+                    FileFormat::Yaml,
+                ))
+                .add_source(
+                    config::Environment::with_prefix("APP")
+                        .prefix_separator("_")
+                        .separator("__"),
+                )
+                .build()?;
 
             settings.try_deserialize::<Settings>()
         }
     }
 }
-
-
 
 pub enum Environment {
     Local,
@@ -137,7 +139,11 @@ async fn configure_ssm() -> aws_sdk_ssm::Config {
 
     let hyper_client = HyperClientBuilder::new().build(https_connector);
 
-    let region = RegionProviderChain::default_provider().or_else(Region::new("us-east-1")).region().await.unwrap();
+    let region = RegionProviderChain::default_provider()
+        .or_else(Region::new("us-east-1"))
+        .region()
+        .await
+        .unwrap();
 
     let credentials = DefaultCredentialsChain::builder()
         .region(region.clone())

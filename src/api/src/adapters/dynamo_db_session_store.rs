@@ -2,6 +2,7 @@ use actix_session::storage::{LoadError, SaveError, SessionKey, SessionStore, Upd
 use actix_web::cookie::time::Duration;
 use anyhow::Error;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
+use aws_config::meta::region::RegionProviderChain;
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::config::{Credentials, ProvideCredentials, Region};
 use aws_sdk_dynamodb::error::SdkError;
@@ -13,7 +14,6 @@ use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use aws_config::meta::region::RegionProviderChain;
 
 pub(crate) type SessionState = HashMap<String, String>;
 

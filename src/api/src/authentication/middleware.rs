@@ -6,7 +6,6 @@ use actix_web::error::InternalError;
 use actix_web::{FromRequest, HttpMessage};
 use actix_web_lab::middleware::Next;
 
-
 #[derive(Clone, Debug)]
 pub struct UserId(String);
 

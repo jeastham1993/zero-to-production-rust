@@ -1,7 +1,7 @@
 use crate::authentication::{validate_credentials, Credentials};
 use crate::authentication::{AuthError, UserRepository};
-use crate::utils::error_chain_fmt;
 use crate::session_state::TypedSession;
+use crate::utils::error_chain_fmt;
 use actix_web::error::InternalError;
 use actix_web::http::header::LOCATION;
 use actix_web::web;
@@ -22,7 +22,7 @@ fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 // We are now injecting `PgPool` to retrieve stored credentials from the database
 pub async fn login(
     form: web::Form<FormData>,
-    user_repo: web::Data<dyn UserRepository>,
+    user_repo: web::Data<dyn UserRepository + Send + Sync>,
     session: TypedSession,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {

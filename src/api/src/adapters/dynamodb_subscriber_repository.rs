@@ -1,11 +1,11 @@
-use crate::domain::new_subscriber::{NewSubscriber};
+use crate::domain::new_subscriber::NewSubscriber;
 
 use crate::domain::subscriber_repository::{DatabaseError, SubscriberRepository};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
-use opentelemetry::{trace::TraceContextExt};
+use opentelemetry::trace::TraceContextExt;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -23,9 +23,7 @@ impl DynamoDbSubscriberRepository {
 
 #[async_trait]
 impl SubscriberRepository for DynamoDbSubscriberRepository {
-    #[tracing::instrument(
-    skip(new_subscriber)
-    )]
+    #[tracing::instrument(skip(new_subscriber))]
     async fn insert_subscriber(
         &self,
         new_subscriber: &NewSubscriber,
@@ -38,31 +36,27 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(new_subscriber.email.to_string()))
             .item("Type", AttributeValue::S("Subscriber".to_string()))
-            .item("EmailAddress", AttributeValue::S(new_subscriber.email.to_string()))
+            .item(
+                "EmailAddress",
+                AttributeValue::S(new_subscriber.email.to_string()),
+            )
             .condition_expression("attribute_not_exists(PK)".to_string());
 
         _put_res_builder = match trace_details {
             None => _put_res_builder,
-            Some((trace_id, span_id)) => {
-                _put_res_builder
-                    .item("TraceParent", AttributeValue::S(trace_id))
-                    .item("ParentSpan", AttributeValue::S(span_id))
-            }
+            Some((trace_id, span_id)) => _put_res_builder
+                .item("TraceParent", AttributeValue::S(trace_id))
+                .item("ParentSpan", AttributeValue::S(span_id)),
         };
 
-        _put_res_builder
-            .send()
-            .await
-            .context(format!(
-                "Failure inserting record to DynamoDB. Using table {}",
-                &self.table_name
-            ))?;
+        _put_res_builder.send().await.context(format!(
+            "Failure inserting record to DynamoDB. Using table {}",
+            &self.table_name
+        ))?;
 
         Ok(new_subscriber.email.to_string())
     }
-    #[tracing::instrument(
-    skip(subscriber_id, subscription_token)
-    )]
+    #[tracing::instrument(skip(subscriber_id, subscription_token))]
     async fn store_token(
         &self,
         subscriber_id: String,
@@ -75,38 +69,26 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
             .put_item()
             .table_name(&self.table_name)
             .item("PK", AttributeValue::S(subscription_token.to_string()))
-            .item(
-                "EmailAddress",
-                AttributeValue::S(subscriber_id.to_string()),
-            )
-            .item(
-                "Type",
-                AttributeValue::S("SubscriberToken".to_string()),
-            )
+            .item("EmailAddress", AttributeValue::S(subscriber_id.to_string()))
+            .item("Type", AttributeValue::S("SubscriberToken".to_string()))
             .condition_expression("attribute_not_exists(PK)".to_string());
 
         _put_res_builder = match trace_details {
             None => _put_res_builder,
-            Some((trace_id, span_id)) => {
-                _put_res_builder
-                    .item("TraceParent", AttributeValue::S(trace_id))
-                    .item("ParentSpan", AttributeValue::S(span_id))
-            }
+            Some((trace_id, span_id)) => _put_res_builder
+                .item("TraceParent", AttributeValue::S(trace_id))
+                .item("ParentSpan", AttributeValue::S(span_id)),
         };
 
-        _put_res_builder.send()
-            .await
-            .context(format!(
-                "Failure inserting record to DynamoDB. Using table {}",
-                &self.table_name
-            ))?;
+        _put_res_builder.send().await.context(format!(
+            "Failure inserting record to DynamoDB. Using table {}",
+            &self.table_name
+        ))?;
 
         Ok(())
     }
 
-    #[tracing::instrument(
-    skip(subscription_token)
-    )]
+    #[tracing::instrument(skip(subscription_token))]
     async fn get_subscriber_id_from_token(
         &self,
         subscription_token: &str,
@@ -134,9 +116,7 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
         }
     }
 
-    #[tracing::instrument(
-    skip(subscriber_id)
-    )]
+    #[tracing::instrument(skip(subscriber_id))]
     async fn confirm_subscriber(&self, subscriber_id: String) -> Result<(), anyhow::Error> {
         let trace_details = get_trace_and_span_id();
 
@@ -152,20 +132,15 @@ impl SubscriberRepository for DynamoDbSubscriberRepository {
 
         _put_res_builder = match trace_details {
             None => _put_res_builder,
-            Some((trace_id, span_id)) => {
-                _put_res_builder
-                    .item("TraceParent", AttributeValue::S(trace_id))
-                    .item("ParentSpan", AttributeValue::S(span_id))
-            }
+            Some((trace_id, span_id)) => _put_res_builder
+                .item("TraceParent", AttributeValue::S(trace_id))
+                .item("ParentSpan", AttributeValue::S(span_id)),
         };
 
-        _put_res_builder
-            .send()
-            .await
-            .context(format!(
-                "Failure inserting record to DynamoDB. Using table {}",
-                &self.table_name
-            ))?;
+        _put_res_builder.send().await.context(format!(
+            "Failure inserting record to DynamoDB. Using table {}",
+            &self.table_name
+        ))?;
 
         Ok(())
     }

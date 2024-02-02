@@ -1,15 +1,18 @@
-use std::{future::{ready, Future, Ready}, io};
-use std::pin::Pin;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::Error;
+use std::pin::Pin;
+use std::{
+    future::{ready, Future, Ready},
+    io,
+};
 
 pub struct TraceData;
 
 impl<S, B> Transform<S, ServiceRequest> for TraceData
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -27,14 +30,14 @@ pub struct TraceDataMiddleware<S> {
 }
 
 impl<S, B> Service<ServiceRequest> for TraceDataMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>>>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     actix_web::dev::forward_ready!(service);
 
@@ -43,8 +46,8 @@ impl<S, B> Service<ServiceRequest> for TraceDataMiddleware<S>
             Some(provider) => provider,
             None => {
                 let err = io::Error::new(io::ErrorKind::Other, "Couldn't get provider");
-                return Box::pin(async { Err(Error::from(err)) })
-            },
+                return Box::pin(async { Err(Error::from(err)) });
+            }
         };
         let fut = self.service.call(req);
         Box::pin(async move {
@@ -56,7 +59,10 @@ impl<S, B> Service<ServiceRequest> for TraceDataMiddleware<S>
 }
 
 impl<S> TraceDataMiddleware<S> {
-    fn get_provider(&self, req: &ServiceRequest) -> Option<opentelemetry_sdk::trace::TracerProvider> {
+    fn get_provider(
+        &self,
+        req: &ServiceRequest,
+    ) -> Option<opentelemetry_sdk::trace::TracerProvider> {
         req.app_data::<actix_web::web::Data<opentelemetry_sdk::trace::TracerProvider>>()
             .and_then(|data| Some(data.as_ref()))
             .cloned()

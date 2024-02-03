@@ -251,9 +251,7 @@ pub async fn spawn_app() -> TestApp {
     // Create and migrate the database
     let dynamo_db_client = configure_database(&configuration.database).await;
 
-    let provider = init_tracer(&configuration.telemetry);
-    let tracer = &provider.tracer("zero2prod-api");
-
+    let tracer = init_tracer(&configuration.telemetry);
     let subscriber = get_subscriber(
         configuration.telemetry.dataset_name.clone(),
         "info".into(),

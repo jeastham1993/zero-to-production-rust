@@ -1,5 +1,5 @@
 use aws_lambda_events::sqs::SqsMessage;
-use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState, TracerProvider as _};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -20,6 +20,40 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 use actix_web::Error;
+
+/// Compose multiple layers into a tracing subscriber.
+pub fn get_subscriber<Sink>(
+    name: String,
+    env_filter: String,
+    sink: Sink,
+    config: &TelemetrySettings,
+    trace_provider: &TracerProvider,
+) -> impl Subscriber + Send + Sync
+    where
+        Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
+    let formatting_layer = BunyanFormattingLayer::new(name, sink);
+
+    Registry::default()
+        .with(env_filter)
+        .with(JsonStorageLayer)
+        .with(formatting_layer)
+        .with(tracing_subscriber::fmt::Layer::default())
+        .with(
+            tracing_opentelemetry::layer()
+                .with_tracer(trace_provider.tracer(config.dataset_name.clone())),
+        )
+        .with(LevelFilter::DEBUG)
+}
+
+pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
+    let _ = LogTracer::init();
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let _ = set_global_default(subscriber);
+}
 
 pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
     let span_exporter = match trace_config.otlp_endpoint.as_str() {
@@ -65,37 +99,6 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
             runtime::Tokio,
         )
         .build()
-}
-
-/// Compose multiple layers into a tracing subscriber.
-pub fn get_subscriber<Sink>(
-    name: String,
-    env_filter: String,
-    sink: Sink,
-    _config: &TelemetrySettings,
-    tracer: &opentelemetry_sdk::trace::Tracer,
-) -> impl Subscriber + Send + Sync
-    where
-        Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
-{
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
-    let formatting_layer = BunyanFormattingLayer::new(name, sink);
-
-    Registry::default()
-        .with(env_filter)
-        .with(JsonStorageLayer)
-        .with(formatting_layer)
-        .with(tracing_subscriber::fmt::Layer::default())
-        .with(tracing_opentelemetry::layer().with_tracer(tracer.clone()))
-        .with(LevelFilter::DEBUG)
-}
-
-pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
-    let _ = LogTracer::init();
-    global::set_text_map_propagator(TraceContextPropagator::new());
-
-    let _ = set_global_default(subscriber);
 }
 
 pub async fn parse_context_from(record: &SqsMessage) -> Result<opentelemetry::Context, ()> {

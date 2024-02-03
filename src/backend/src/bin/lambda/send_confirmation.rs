@@ -10,7 +10,7 @@ use backend::configuration::{get_configuration, Settings};
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
 use backend::telemetry::{parse_context_from};
-use telemetry::{init_tracer, get_subscriber};
+use telemetry::{init_tracer, get_subscriber, init_subscriber};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use opentelemetry::global;
@@ -74,24 +74,21 @@ async fn function_handler<TEmail: EmailClient>(
 ) -> Result<(), Error> {
     // Extract some useful information from the request
     for record in event.payload.records {
-        let provider = init_tracer(&configuration.telemetry);
-        let tracer = &provider.tracer("zero2prod-backend");
+        let tracer = init_tracer(&configuration.telemetry);
+        let subscriber = get_subscriber(
+            configuration.telemetry.dataset_name.clone(),
+            "info".into(),
+            std::io::stdout,
+            &configuration.telemetry,
+            &tracer,
+        );
 
         let ctx = match parse_context_from(&record).await {
             Ok(res) => res,
             Err(_) => continue,
         };
 
-        let subscriber = get_subscriber(
-            configuration.telemetry.dataset_name.clone(),
-            "info".into(),
-            std::io::stdout,
-            &configuration.telemetry,
-            tracer,
-        );
-
-        global::set_text_map_propagator(TraceContextPropagator::new());
-        let _ = set_global_default(subscriber);
+        init_subscriber(subscriber);
 
         match handle_record(&ctx, record, email_client, base_url).await {
             Ok(_) => {}
@@ -102,7 +99,7 @@ async fn function_handler<TEmail: EmailClient>(
             }
         };
 
-        provider.force_flush();
+        tracer.force_flush();
     }
 
     Ok(())

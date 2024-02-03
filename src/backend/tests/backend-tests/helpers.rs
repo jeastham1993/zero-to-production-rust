@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use aws_lambda_events::dynamodb::{EventRecord, StreamRecord};
+use aws_lambda_events::sqs::SqsMessage;
 
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::Context;
@@ -16,7 +17,7 @@ use backend::configuration::get_configuration;
 use backend::domain::email_client::EmailClient;
 use backend::domain::subscriber_email::SubscriberEmail;
 use backend::send_confirmation_handler::{handle_record, EmailSendingError};
-use backend::telemetry::{get_subscriber, init_subscriber, init_tracer};
+use telemetry::{get_subscriber, init_subscriber, init_tracer};
 use wiremock::MockServer;
 
 pub struct TestApp {
@@ -42,25 +43,17 @@ impl TestApp {
             AttributeValue::S("SubscriberToken".to_string()),
         );
 
-        let record = EventRecord {
-            aws_region: "us-east-1".to_string(),
-            change: StreamRecord {
-                approximate_creation_date_time: Default::default(),
-                keys: Default::default(),
-                new_image: hash_map.into(),
-                old_image: Default::default(),
-                sequence_number: None,
-                size_bytes: 0,
-                stream_view_type: None,
-            },
-            event_id: "".to_string(),
-            event_name: "".to_string(),
-            event_source: None,
-            event_version: None,
+        let record = SqsMessage{
+            message_id: None,
+            receipt_handle: None,
+            body: None,
+            md5_of_body: None,
+            md5_of_message_attributes: None,
+            attributes: Default::default(),
+            message_attributes: Default::default(),
             event_source_arn: None,
-            user_identity: None,
-            record_format: None,
-            table_name: None,
+            event_source: None,
+            aws_region: None,
         };
 
         handle_record(&Context::new(), record, &self.email_client, &self.base_url).await
@@ -72,10 +65,9 @@ pub async fn spawn_app() -> TestApp {
 
     // Randomise configuration to ensure test isolation
     let configuration = {
-        let mut c = get_configuration().expect("Failed to read configuration.");
+        let mut c = get_configuration().await.expect("Failed to read configuration.");
         // Use a different database for each test case
         c.database.database_name = Uuid::new_v4().to_string();
-        c.database.auth_database_name = Uuid::new_v4().to_string();
         c.database.use_local = true;
         // Use the mock server as email API
         c.email_settings.base_url = email_server.uri();
@@ -83,14 +75,13 @@ pub async fn spawn_app() -> TestApp {
         c.telemetry.dataset_name = "test-zero2prod".to_string();
         c
     };
-
     let tracer = init_tracer(&configuration.telemetry);
     let subscriber = get_subscriber(
-        configuration.telemetry.dataset_name.clone(),
+        format!("test-{}", configuration.telemetry.dataset_name.clone()),
         "info".into(),
         std::io::stdout,
         &configuration.telemetry,
-        &tracer.tracer("zero2prod-backend-local"),
+        &tracer,
     );
 
     init_subscriber(subscriber);

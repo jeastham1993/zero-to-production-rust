@@ -91,8 +91,7 @@ async fn run(
 
     let base_url = Data::new(ApplicationBaseUrl(base_url));
 
-    let provider = init_tracer(telemetry);
-    let tracer = &provider.tracer("zero2prod-api");
+    let tracer = init_tracer(telemetry);
     let subscriber = get_subscriber(
         telemetry.dataset_name.clone(),
         "info".into(),
@@ -102,6 +101,7 @@ async fn run(
     );
 
     init_subscriber(subscriber);
+
 
     let (s3_client, dynamodb_client) = configure_aws(&db_settings).await;
 
@@ -134,10 +134,10 @@ async fn run(
     let newsletter_store_data: Data<dyn NewsletterStore + Send + Sync> =
         Data::from(newsletter_store_arc);
 
-    let arc_tracer = Arc::new(tracer.clone());
-    let tracer_data = Data::from(arc_tracer);
-
     let server = HttpServer::new(move || {
+        let arc_tracer = Arc::new(tracer.clone());
+        let tracer_data = Data::from(arc_tracer);
+
         App::new()
             .wrap(message_framework.clone())
             .wrap(SessionMiddleware::new(

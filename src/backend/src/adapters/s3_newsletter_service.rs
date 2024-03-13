@@ -8,6 +8,7 @@ use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
 use serde::Serialize;
 
+#[derive(Clone)]
 pub struct S3NewsletterMetadataStorage {
     s3_client: Client,
     bucket_name: String,

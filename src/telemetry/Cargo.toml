@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lambda-extension = "0"
 aws_lambda_events = { version = "0.12.0", default-features = false, features = ["sqs", "dynamodb"] }
 opentelemetry = { version = "0", features = ["trace"] }
 opentelemetry-otlp = { version = "0", features = ["http-proto", "reqwest-client"] }
@@ -26,3 +27,5 @@ reqwest = "0.11.24"
 actix-web = "4"
 actix-web-opentelemetry = "0.16"
 tracing-actix-web = { version = "0.7.9", features = ["opentelemetry_0_22"] }
+tokio = {version = "1", features = ["rt-multi-thread"]}
+anyhow = "1"

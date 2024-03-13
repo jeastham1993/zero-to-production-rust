@@ -31,6 +31,7 @@ use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;
 use crate::middleware::TraceData;
 use opentelemetry_sdk::trace::TracerProvider;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing_actix_web::{RequestId, TracingLogger};
 use telemetry::{init_tracer, get_subscriber, init_subscriber, TelemetrySettings, CustomLevelRootSpanBuilder};
 
@@ -42,7 +43,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
+    pub async fn build(configuration: Settings, tracer_provider: TracerProvider, request_done_sender: UnboundedSender<()>) -> Result<Self, anyhow::Error> {
         let listener = TcpListener::bind(format!(
             "{}:{}",
             configuration.application.host_name, configuration.application.application_port
@@ -54,7 +55,8 @@ impl Application {
             configuration.database,
             configuration.application.base_url,
             configuration.application.hmac_secret,
-            &configuration.telemetry,
+            tracer_provider,
+            request_done_sender
         )
         .await?;
 
@@ -76,7 +78,8 @@ async fn run(
     db_settings: DatabaseSettings,
     base_url: String,
     hmac_secret: Secret<String>,
-    telemetry: &TelemetrySettings,
+    tracer: TracerProvider,
+    request_done_sender: UnboundedSender<()>
 ) -> Result<Server, anyhow::Error> {
     let secret_key = Key::from(hmac_secret.clone().expose_secret().as_bytes());
     let message_store = CookieMessageStore::builder(secret_key.clone()).build();
@@ -90,17 +93,6 @@ async fn run(
         .await?;
 
     let base_url = Data::new(ApplicationBaseUrl(base_url));
-
-    let tracer = init_tracer(telemetry);
-    let subscriber = get_subscriber(
-        telemetry.dataset_name.clone(),
-        "info".into(),
-        std::io::stdout,
-        telemetry,
-        &tracer,
-    );
-
-    init_subscriber(subscriber);
     
     let (s3_client, dynamodb_client) = configure_aws(&db_settings).await;
 
@@ -187,6 +179,7 @@ async fn run(
             .app_data(base_url.clone())
             .app_data(Data::new(HmacSecret(hmac_secret.clone())))
             .app_data(tracer_data.clone())
+            .app_data(Data::new(request_done_sender.clone()))
     })
     .listen(listener)?
     .run();

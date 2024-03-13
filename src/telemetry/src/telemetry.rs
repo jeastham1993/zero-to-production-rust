@@ -9,6 +9,7 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use tracing_actix_web::{DefaultRootSpanBuilder, Level, RootSpanBuilder};
 use std::collections::HashMap;
+use std::sync::Arc;
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::rt::task::JoinHandle;
@@ -19,8 +20,10 @@ use tracing_log::LogTracer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
-use actix_web::Error;
-
+use lambda_extension::{Error, NextEvent};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::Mutex;
+use anyhow::anyhow;
 /// Compose multiple layers into a tracing subscriber.
 pub fn get_subscriber<Sink>(
     name: String,
@@ -57,17 +60,6 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
 
 pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
     let span_exporter = match trace_config.otlp_endpoint.as_str() {
-        "jaeger" => {
-            return opentelemetry_jaeger::new_agent_pipeline()
-                .with_endpoint("localhost:6831")
-                .with_service_name(trace_config.dataset_name.clone())
-                .with_trace_config(config().with_resource(Resource::new(vec![KeyValue::new(
-                    opentelemetry_semantic_conventions::resource::SERVICE_NAME.to_string(),
-                    trace_config.dataset_name.clone(),
-                )])))
-                .build_simple()
-                .unwrap();
-        }
         "http://localhost:4318" => opentelemetry_otlp::new_exporter()
             .http()
             .with_endpoint(trace_config.otlp_endpoint.clone())
@@ -186,7 +178,7 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
         root_span
     }
 
-    fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
+    fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, actix_web::Error>) {
         let _current_span = tracing::Span::current();
 
         DefaultRootSpanBuilder::on_request_end(span, outcome);
@@ -213,4 +205,42 @@ pub struct TelemetrySettings {
     pub otlp_endpoint: String,
     pub honeycomb_api_key: Secret<String>,
     pub dataset_name: String
+}
+
+pub struct TraceFlushExtension {
+    pub request_done_receiver: Mutex<UnboundedReceiver<()>>,
+}
+
+impl TraceFlushExtension {
+    pub fn new(request_done_receiver: UnboundedReceiver<()>) -> Self {
+        Self {
+            request_done_receiver: Mutex::new(request_done_receiver),
+        }
+    }
+
+    pub async fn invoke(&self, event: lambda_extension::LambdaEvent, tracer_provider: Arc<TracerProvider>) -> Result<(), Error> {
+        match event.next {
+            // NB: Internal extensions only support the INVOKE event.
+            NextEvent::Shutdown(shutdown) => {
+                return Err(anyhow!("extension received unexpected SHUTDOWN event: {:?}", shutdown).into());
+            }
+            NextEvent::Invoke(_e) => {}
+        }
+
+        eprintln!("[extension] waiting for event to be processed");
+
+        // Wait for runtime to finish processing event.
+        self.request_done_receiver
+            .lock()
+            .await
+            .recv()
+            .await
+            .ok_or_else(|| anyhow!("channel is closed"))?;
+
+        eprintln!("[extension] flushing logs and telemetry");
+
+        tracer_provider.force_flush();
+
+        Ok(())
+    }
 }

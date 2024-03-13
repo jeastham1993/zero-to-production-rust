@@ -5,7 +5,7 @@ set -eo pipefail
 
 >&2 echo "Starting Jaeger for local OpenTelemetry tracing"
 
-docker run -d -p6831:6831/udp -p6832:6832/udp -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
+docker run -d -e COLLECTOR_OTLP_ENABLED=true -p4317:4317 -p4318:4318 -p6831:6831/udp -p6832:6832/udp -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 
 >&2 echo "Jaeger started, access the UI at http://localhost:16686"
 

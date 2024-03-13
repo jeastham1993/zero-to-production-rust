@@ -67,8 +67,6 @@ impl SendConfirmationEventHandler {
         Ok(SqsBatchResponse::default())
     }
     
-    
-
     pub async fn handle<TEmail: EmailClient>(
         &self,
         context: &opentelemetry::Context,

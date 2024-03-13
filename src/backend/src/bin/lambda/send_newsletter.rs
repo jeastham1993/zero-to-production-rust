@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
@@ -6,29 +7,34 @@ use aws_lambda_events::event::sqs::SqsEvent;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_sdk_s3::config::SharedHttpClient;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
+use lambda_extension::Extension;
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
-use backend::configuration::{get_configuration, DatabaseSettings, Settings};
-use backend::domain::email_client::EmailClient;
+use backend::configuration::{get_configuration, DatabaseSettings};
 use backend::domain::subscriber_email::SubscriberEmail;
-use backend::telemetry::{parse_context_from};
-use telemetry::{init_tracer, get_subscriber, init_subscriber};
+use telemetry::{init_tracer, get_subscriber, init_subscriber, TraceFlushExtension};
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
-use opentelemetry::global;
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
+use tokio::sync::mpsc::unbounded_channel;
 
 use backend::adapters::dynamodb_subscriber_repository::DynamoDbSubscriberRepository;
 use backend::adapters::s3_newsletter_service::S3NewsletterMetadataStorage;
-use backend::domain::newsletter_store::NewsletterStore;
-use backend::domain::subscriber_repository::SubscriberRepository;
-use tracing::subscriber::set_global_default;
 
-use backend::send_newsletter_handler::handle_record;
+use backend::send_newsletter_handler::{SendNewsletterEventHandler};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let configuration = get_configuration().await.expect("Failed to read configuration");
+
+    let tracer = init_tracer(&configuration.telemetry);
+    let subscriber = get_subscriber(
+        configuration.telemetry.dataset_name.clone(),
+        "info".into(),
+        std::io::stdout,
+        &configuration.telemetry,
+        &tracer,
+    );
+
+    init_subscriber(subscriber);
 
     let email_adapter = PostmarkEmailClient::new(
         configuration.email_settings.base_url.clone(),
@@ -61,58 +67,41 @@ async fn main() -> Result<(), Error> {
         configuration.database.database_name.clone(),
     );
 
-    run(service_fn(|evt| {
-        function_handler(
-            evt,
-            &configuration,
-            &email_adapter,
-            &newsletter_service,
-            &subscriber_repo,
-        )
-    }))
-    .await
-}
+    let (request_done_sender, request_done_receiver) = unbounded_channel::<()>();
 
-async fn function_handler<
-    TEmail: EmailClient,
-    TNewsletterStore: NewsletterStore,
-    TRepo: SubscriberRepository,
->(
-    event: LambdaEvent<SqsEvent>,
-    configuration: &Settings,
-    email_client: &TEmail,
-    newsletter_store: &TNewsletterStore,
-    repo: &TRepo,
-) -> Result<(), Error> {
-    // Extract some useful information from the request
-    for record in event.payload.records {
-        let tracer = init_tracer(&configuration.telemetry);
-        let subscriber = get_subscriber(
-            configuration.telemetry.dataset_name.clone(),
-            "info".into(),
-            std::io::stdout,
-            &configuration.telemetry,
-            &tracer,
-        );
+    let flush_extension = Arc::new(TraceFlushExtension::new(request_done_receiver));
 
-        let ctx = match parse_context_from(&record).await {
-            Ok(res) => res,
-            Err(_) => continue,
-        };
+    let arc_tracer = Arc::new(tracer);
+    let extension = Extension::new()
+        // Internal extensions only support INVOKE events.
+        .with_events(&["INVOKE"])
+        .with_events_processor(service_fn(|event| {
+            let cloned_tracer = arc_tracer.clone();
 
-        init_subscriber(subscriber);
+            let flush_extension = flush_extension.clone();
+            async move { flush_extension.invoke(event, cloned_tracer).await }
+        }))
+        // Internal extension names MUST be unique within a given Lambda function.
+        .with_extension_name("internal-flush")
+        // Extensions MUST be registered before calling lambda_runtime::run(), which ends the Init
+        // phase and begins the Invoke phase.
+        .register()
+        .await?;
 
-        match handle_record(&ctx, record, email_client, repo, newsletter_store).await {
-            Ok(_) => {}
-            Err(e) => {
-                let error_msg = format!("Failure handling DynamoDB stream record. Error: {}", e);
+    let handler = Arc::new(SendNewsletterEventHandler::new(request_done_sender));
 
-                tracing::error!(error_msg);
-            }
-        };
-
-        tracer.force_flush();
-    }
+    //https://github.com/awslabs/aws-lambda-rust-runtime/blob/main/examples/extension-internal-flush/src/main.rs
+    tokio::try_join!(
+        run(service_fn(|event: LambdaEvent<SqsEvent>| {
+            let handler = handler.clone();
+            let email_adapter = email_adapter.clone();
+            let repo = subscriber_repo.clone();
+            let newsletter_store = newsletter_service.clone();
+            
+            async move { handler.invoke(event, &email_adapter, &repo, &newsletter_store).await }
+        })),
+        extension.run(),
+    )?;
 
     Ok(())
 }

@@ -54,6 +54,7 @@ hyper = {version="1.1.0", features=["client"]}
 hyper-rustls = {version = "0.24.2", features=["webpki-roots"]}
 futures-util = "0.3.30"
 futures = "0.3.30"
+lambda-extension = "0"
 
 telemetry = { path = "../telemetry" }
 

@@ -5,6 +5,8 @@ use std::{
     future::{ready, Future, Ready},
     io,
 };
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub struct TraceData;
 
@@ -42,8 +44,8 @@ where
     actix_web::dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let provider = match self.get_provider(&req) {
-            Some(provider) => provider,
+        let channel = match self.get_channel(&req) {
+            Some(channel) => channel,
             None => {
                 let err = io::Error::new(io::ErrorKind::Other, "Couldn't get provider");
                 return Box::pin(async { Err(Error::from(err)) });
@@ -52,18 +54,18 @@ where
         let fut = self.service.call(req);
         Box::pin(async move {
             let res = fut.await?;
-            provider.force_flush();
+            let _ = channel.send(()).map_err(Box::new);
             Ok(res)
         })
     }
 }
 
 impl<S> TraceDataMiddleware<S> {
-    fn get_provider(
+    fn get_channel(
         &self,
         req: &ServiceRequest,
-    ) -> Option<opentelemetry_sdk::trace::TracerProvider> {
-        req.app_data::<actix_web::web::Data<opentelemetry_sdk::trace::TracerProvider>>()
+    ) -> Option<UnboundedSender<()>> {
+        req.app_data::<actix_web::web::Data<UnboundedSender<()>>>()
             .and_then(|data| Some(data.as_ref()))
             .cloned()
     }

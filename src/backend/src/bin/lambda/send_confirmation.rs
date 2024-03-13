@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::{BehaviorVersion, Region};
@@ -6,58 +5,17 @@ use aws_config::{BehaviorVersion, Region};
 use aws_lambda_events::event::sqs::SqsEvent;
 use aws_sdk_dynamodb::config::ProvideCredentials;
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
-use lambda_extension::{service_fn, Error, Extension, NextEvent};
+use lambda_extension::{service_fn, Error, Extension};
 use backend::adapters::postmark_email_client::PostmarkEmailClient;
 use backend::configuration::{get_configuration};
 use backend::domain::subscriber_email::SubscriberEmail;
-use telemetry::{init_tracer, get_subscriber, init_subscriber};
+use telemetry::{init_tracer, get_subscriber, init_subscriber, TraceFlushExtension};
 
 use lambda_runtime::{run, LambdaEvent};
-use opentelemetry_sdk::trace::{config, Config, TracerProvider};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
-use tokio::sync::Mutex;
+use tokio::sync::mpsc::unbounded_channel;
 
 use std::sync::Arc;
 use backend::send_confirmation_handler::{SendConfirmationEventHandler};
-
-/// Implements an internal Lambda extension to flush logs/telemetry after each request.
-struct TraceFlushExtension {
-    request_done_receiver: Mutex<UnboundedReceiver<()>>,
-}
-
-impl TraceFlushExtension {
-    pub fn new(request_done_receiver: UnboundedReceiver<()>) -> Self {
-        Self {
-            request_done_receiver: Mutex::new(request_done_receiver),
-        }
-    }
-
-    pub async fn invoke(&self, event: lambda_extension::LambdaEvent, tracer_provider: Arc<TracerProvider>) -> Result<(), Error> {
-        match event.next {
-            // NB: Internal extensions only support the INVOKE event.
-            NextEvent::Shutdown(shutdown) => {
-                return Err(anyhow!("extension received unexpected SHUTDOWN event: {:?}", shutdown).into());
-            }
-            NextEvent::Invoke(_e) => {}
-        }
-
-        eprintln!("[extension] waiting for event to be processed");
-
-        // Wait for runtime to finish processing event.
-        self.request_done_receiver
-            .lock()
-            .await
-            .recv()
-            .await
-            .ok_or_else(|| anyhow!("channel is closed"))?;
-
-        eprintln!("[extension] flushing logs and telemetry");
-
-        tracer_provider.force_flush();
-
-        Ok(())
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

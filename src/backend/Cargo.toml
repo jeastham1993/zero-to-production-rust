@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 aws_lambda_events = { version = "0", default-features = false, features = ["sqs"] }
 lambda_runtime = {version = "0", optional = true }
-lambda-extension = "0.10"
+lambda-extension = "0"
 async-trait = "0"
 tokio = {version = "1", features = ["macros", "rt-multi-thread", "macros"]}
 serde = {version = "1", features = ["derive"]}

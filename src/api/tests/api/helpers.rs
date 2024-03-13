@@ -10,6 +10,7 @@ use aws_sdk_dynamodb::types::{
 };
 use aws_sdk_dynamodb::Client;
 use opentelemetry::trace::TracerProvider;
+use tokio::sync::mpsc::unbounded_channel;
 
 use tracing::log::info;
 use uuid::Uuid;
@@ -243,7 +244,7 @@ pub async fn spawn_app() -> TestApp {
         c.database.use_local = true;
         // Use a random OS port
         c.application.application_port = 0;
-        c.telemetry.otlp_endpoint = "jaeger".to_string();
+        c.telemetry.otlp_endpoint = "http://localhost:4318".to_string();
         c.telemetry.dataset_name = "test-zero2prod".to_string();
         c
     };
@@ -262,8 +263,9 @@ pub async fn spawn_app() -> TestApp {
 
     init_subscriber(subscriber);
 
-    // Launch the application as a background task
-    let application = Application::build(configuration.clone())
+    let (request_done_sender, request_done_receiver) = unbounded_channel::<()>();
+    
+    let application = Application::build(configuration.clone(), tracer, request_done_sender)
         .await
         .expect("Failed to build application.");
     let application_port = application.port();

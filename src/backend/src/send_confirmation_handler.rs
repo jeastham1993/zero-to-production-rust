@@ -1,15 +1,20 @@
 use crate::domain::email_client::EmailClient;
 use crate::domain::subscriber_email::SubscriberEmail;
-use crate::utils::error_chain_fmt;
 use anyhow::Context;
-use aws_lambda_events::dynamodb::EventRecord;
-use aws_lambda_events::sqs::{SqsEvent, SqsMessage};
+use aws_lambda_events::sqs::{SqsBatchResponse, SqsEvent, SqsEventObj, SqsMessage};
+use lambda_runtime::LambdaEvent;
+use opentelemetry::trace::TraceContextExt;
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use serde::Deserialize;
+use rand::{Rng, thread_rng};
+use serde::{Deserialize, Serialize};
 use serde_dynamo::AttributeValue;
 use serde_json::Error;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use opentelemetry_sdk::trace::{config, Config, TracerProvider};
+use crate::configuration::Settings;
+use crate::telemetry::parse_context_from;
+use crate::utils::error_chain_fmt;
 
 #[derive(thiserror::Error)]
 pub enum EmailSendingError {
@@ -25,29 +30,87 @@ impl std::fmt::Debug for EmailSendingError {
     }
 }
 
-#[tracing::instrument(name = "handle_queued_message", skip(context, email_client))]
-pub async fn handle_record<TEmail: EmailClient>(
-    context: &opentelemetry::Context,
-    record: SqsMessage,
-    email_client: &TEmail,
-    base_url: &str,
-) -> Result<(), EmailSendingError> {
-    tracing::Span::current().set_parent(context.clone());
+/// Implements the main event handler for processing events from an SQS queue.
+pub struct SendConfirmationEventHandler {
+    request_done_sender: UnboundedSender<()>,
+}
 
-    let subscription_token = generate_subscription_token();
+impl SendConfirmationEventHandler {
+    pub fn new(request_done_sender: UnboundedSender<()>) -> Self {
+        Self { request_done_sender }
+    }
 
-    let body = parse_message_body(&record).expect("Failure parsing message");
+    pub async fn invoke<TEmail: EmailClient>(
+        &self,
+        event: LambdaEvent<SqsEvent>,
+        configuration: &Settings,
+        email_client: &TEmail,
+    ) -> Result<SqsBatchResponse, Error> {
+        for record in event.payload.records {
+            let ctx = match parse_context_from(&record).await {
+                Ok(res) => res,
+                Err(_) => continue,
+            };
 
-    send_confirmation_email(
-        email_client,
-        SubscriberEmail::parse(body.email_address).unwrap(),
-        &body.subscriber_token,
-        base_url,
-    )
-    .await
-    .context("Failed to send confirmation email")?;
+            match self.handle(&ctx, record, email_client, &configuration.base_url).await {
+                Ok(_) => {}
+                Err(e) => {
+                    let error_msg = format!("Failure handling SQS record. Error: {}", e);
 
-    Ok(())
+                    lambda_extension::tracing::error!(error_msg);
+                }
+            };
+        }
+        
+        let _ = self.request_done_sender.send(()).map_err(Box::new);
+
+        Ok(SqsBatchResponse::default())
+    }
+    
+    
+
+    pub async fn handle<TEmail: EmailClient>(
+        &self,
+        context: &opentelemetry::Context,
+        record: SqsMessage,
+        email_client: &TEmail,
+        base_url: &str,
+    ) -> Result<(), EmailSendingError> {
+        tracing::Span::current().set_parent(context.clone());
+
+        let context = tracing::Span::current().context();
+        let span_context = context.span().span_context().clone();
+
+        let trace_id = span_context.trace_id().to_string().clone();
+        let span_id = span_context.span_id().to_string().clone();
+
+        let dd_trace_id = u64::from_str_radix(&trace_id[16..], 16)
+            .expect("Failed to convert string_trace_id to a u64.")
+            .to_string();
+
+        let dd_span_id = u64::from_str_radix(&span_id, 16)
+            .expect("Failed to convert string_span_id to a u64.")
+            .to_string();
+
+        tracing::Span::current().record("dd.trace_id", dd_trace_id);
+        tracing::Span::current().record("dd.span_id", dd_span_id);
+
+        let body = parse_message_body(&record).expect("Failure parsing message");
+
+        send_confirmation_email(
+            email_client,
+            SubscriberEmail::parse(body.email_address).unwrap(),
+            &body.subscriber_token,
+            base_url,
+        )
+            .await
+            .context("Failed to send confirmation email")?;
+
+        // Notify the extension to flush traces.
+        let _ = self.request_done_sender.send(()).map_err(Box::new);
+
+        Ok(())
+    }
 }
 
 #[tracing::instrument(
@@ -96,8 +159,8 @@ fn generate_subscription_token() -> String {
         .collect()
 }
 
-#[derive(Deserialize)]
-struct SendConfirmationMessageBody {
+#[derive(Serialize, Deserialize)]
+pub struct SendConfirmationMessageBody {
     trace_parent: String,
     parent_span: String,
     email_address: String,

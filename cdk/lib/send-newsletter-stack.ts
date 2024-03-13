@@ -1,7 +1,8 @@
 import { RustFunction } from '@cdklabs/aws-lambda-rust';
+import { Duration } from 'aws-cdk-lib';
 import { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Architecture, DockerImageCode, DockerImageFunction, StartingPosition } from 'aws-cdk-lib/aws-lambda';
+import { Architecture, DockerImageCode, DockerImageFunction, LayerVersion, StartingPosition } from 'aws-cdk-lib/aws-lambda';
 import { DynamoEventSource, SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { CfnPipe } from 'aws-cdk-lib/aws-pipes';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
@@ -58,16 +59,26 @@ export class SendNewsletterProcessingStack extends Construct {
       })
   
       const send_newsletter_function = new RustFunction(this, "NewsletterFunction", {
-        entry: '../src/backend/Cargo.toml',
+        entry: '../src/Cargo.toml',
         functionName: 'Zero2ProdSendNewsletterFunction',
         binaryName: 'send_newsletter',
+        timeout: Duration.seconds(60),
         environment: {
           "APP_DATABASE__DATABASE_NAME": props.newsletterTable.tableName,
           "APP_DATABASE__NEWSLETTER_STORAGE_BUCKET": props.newsletterStorageBucket.bucketName,
           LOG_LEVEL: "error",
           CONFIG_PARAMETER_NAME: props.configParameter.parameterName,
-          APP_ENVIRONMENT: "production"
+          APP_ENVIRONMENT: "production",
+          DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: "localhost:4318",
+          AWS_LAMBDA_EXEC_WRAPPER: "/opt/datadog_wrapper",
+          DD_SITE: "datadoghq.eu",
+          DD_API_KEY: process.env.DATADOG_API_KEY ?? "",
+          DD_ENV: "production",
+          DD_SERVICE: "zero2prod-send-newsletter"
         },
+        layers: [
+          LayerVersion.fromLayerVersionArn(this, "DDExtension", "arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension-ARM:55")
+        ],
         architecture: Architecture.ARM_64,
       });
   

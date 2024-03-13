@@ -6,6 +6,7 @@ use crate::domain::subscriber_repository::SubscriberRepository;
 use crate::utils::error_chain_fmt;
 use anyhow::Context;
 use aws_lambda_events::sqs::SqsMessage;
+use opentelemetry::trace::TraceContextExt;
 use serde::Deserialize;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -25,7 +26,8 @@ impl std::fmt::Debug for EmailSendingError {
 
 #[tracing::instrument(
     name = "handle_queued_message",
-    skip(context, record, email_client, repo, newsletter_store)
+    skip(context, record, email_client, repo, newsletter_store),
+    fields(dd.trace_id=tracing::field::Empty, dd.span_id=tracing::field::Empty)
 )]
 pub async fn handle_record<
     TEmail: EmailClient,
@@ -39,6 +41,23 @@ pub async fn handle_record<
     newsletter_store: &TNewsletterStore,
 ) -> Result<(), EmailSendingError> {
     tracing::Span::current().set_parent(context.clone());
+
+    let context = tracing::Span::current().context();
+    let span_context = context.span().span_context().clone();
+
+    let trace_id = span_context.trace_id().to_string().clone();
+    let span_id = span_context.span_id().to_string().clone();
+
+    let dd_trace_id = u64::from_str_radix(&trace_id[16..], 16)
+        .expect("Failed to convert string_trace_id to a u64.")
+        .to_string();
+
+    let dd_span_id = u64::from_str_radix(&span_id, 16)
+        .expect("Failed to convert string_span_id to a u64.")
+        .to_string();
+
+    tracing::Span::current().record("dd.trace_id", dd_trace_id);
+    tracing::Span::current().record("dd.span_id", dd_span_id);
 
     let newsletter_data_path = parse_message_body(&record).unwrap();
 

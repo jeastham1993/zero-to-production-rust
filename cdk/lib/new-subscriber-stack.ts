@@ -1,7 +1,8 @@
 import { RustFunction } from '@cdklabs/aws-lambda-rust';
+import { Duration } from 'aws-cdk-lib';
 import { ITable } from 'aws-cdk-lib/aws-dynamodb';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
-import { Architecture, DockerImageCode, DockerImageFunction } from 'aws-cdk-lib/aws-lambda';
+import { Architecture, DockerImageCode, DockerImageFunction, LayerVersion } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { CfnPipe } from 'aws-cdk-lib/aws-pipes';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
@@ -58,14 +59,24 @@ export class NewSubscriberProcessingStack extends Construct {
       })
   
       const send_confirmation_function = new RustFunction(this, "ConfirmationFunction", {
-        entry: '../src/backend/Cargo.toml',
+        entry: '../src/Cargo.toml',
         binaryName: 'send_confirmation',
         architecture: Architecture.ARM_64,
+        timeout: Duration.seconds(60),
         environment: {
           LOG_LEVEL: "error",
           CONFIG_PARAMETER_NAME: props.configParameter.parameterName,
-          APP_ENVIRONMENT: "production"
+          APP_ENVIRONMENT: "production",
+          DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: "localhost:4318",
+          AWS_LAMBDA_EXEC_WRAPPER: "/opt/datadog_wrapper",
+          DD_SITE: "datadoghq.eu",
+          DD_API_KEY: process.env.DATADOG_API_KEY ?? "",
+          DD_ENV: "production",
+          DD_SERVICE: "zero2prod-new-subscriber"
         },
+        layers: [
+          LayerVersion.fromLayerVersionArn(this, "DDExtension", "arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension-ARM:55")
+        ],
       });
   
       send_confirmation_function.addEventSource(new SqsEventSource(new_subscriber_queue, {

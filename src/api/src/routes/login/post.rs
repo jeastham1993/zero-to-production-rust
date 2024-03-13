@@ -54,8 +54,11 @@ pub async fn login(
 
 fn login_redirect(e: LoginError) -> InternalError<LoginError> {
     FlashMessage::error(e.to_string()).send();
+    
+    let lwa_base_path = std::env::var("AWS_LWA_REMOVE_BASE_PATH").unwrap_or("".to_string());
+    
     let response = HttpResponse::SeeOther()
-        .insert_header((LOCATION, "/login"))
+        .insert_header((LOCATION, format!("{}/login", lwa_base_path)))
         .finish();
     InternalError::from_response(e, response)
 }

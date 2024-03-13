@@ -68,6 +68,11 @@ pub fn init_tracer(trace_config: &TelemetrySettings) -> TracerProvider {
                 .build_simple()
                 .unwrap();
         }
+        "http://localhost:4318" => opentelemetry_otlp::new_exporter()
+            .http()
+            .with_endpoint(trace_config.otlp_endpoint.clone())
+            .with_http_client(reqwest::Client::default())
+            .with_timeout(std::time::Duration::from_secs(2)),
         _ => opentelemetry_otlp::new_exporter()
             .http()
             .with_endpoint(trace_config.otlp_endpoint.clone())
@@ -157,7 +162,28 @@ impl RootSpanBuilder for CustomLevelRootSpanBuilder {
         } else {
             Level::INFO
         };
-        tracing_actix_web::root_span!(level = level, request)
+
+        let root_span: tracing::Span = tracing_actix_web::root_span!(level = level, request, "dd.trace_id" = tracing::field::Empty, "dd.span_id" = tracing::field::Empty, "random_rubbish" = tracing::field::Empty);
+
+        let context = root_span.context();
+        // Use OpenTelemetry's API to retrieve the TraceContext
+        let span_context = context.span().span_context().clone();
+
+        let trace_id = span_context.trace_id().to_string().clone();
+        let span_id = span_context.span_id().to_string().clone();
+
+        let dd_trace_id = u64::from_str_radix(&trace_id[16..], 16)
+            .expect("Failed to convert string_trace_id to a u64.")
+            .to_string();
+
+        let dd_span_id = u64::from_str_radix(&span_id, 16)
+            .expect("Failed to convert string_span_id to a u64.")
+            .to_string();
+
+        root_span.record("dd.trace_id", dd_trace_id);
+        root_span.record("dd.span_id", dd_span_id);
+
+        root_span
     }
 
     fn on_request_end<B: MessageBody>(span: Span, outcome: &Result<ServiceResponse<B>, Error>) {
@@ -186,5 +212,5 @@ struct TracedMessage {
 pub struct TelemetrySettings {
     pub otlp_endpoint: String,
     pub honeycomb_api_key: Secret<String>,
-    pub dataset_name: String,
+    pub dataset_name: String
 }

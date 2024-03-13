@@ -14,7 +14,6 @@ use actix_web::dev::{Server, Service};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpMessage, HttpServer};
 use actix_web_flash_messages::storage::CookieMessageStore;
-use opentelemetry::trace::TracerProvider;
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_lab::middleware::from_fn;
 use aws_config::default_provider::credentials::DefaultCredentialsChain;
@@ -31,6 +30,7 @@ use std::sync::Arc;
 use crate::adapters::S3NewsletterMetadataStorage;
 use crate::domain::NewsletterStore;
 use crate::middleware::TraceData;
+use opentelemetry_sdk::trace::TracerProvider;
 use tracing_actix_web::{RequestId, TracingLogger};
 use telemetry::{init_tracer, get_subscriber, init_subscriber, TelemetrySettings, CustomLevelRootSpanBuilder};
 
@@ -38,7 +38,7 @@ pub struct ApplicationBaseUrl(pub String);
 
 pub struct Application {
     port: u16,
-    server: Server,
+    server: Server
 }
 
 impl Application {
@@ -101,8 +101,7 @@ async fn run(
     );
 
     init_subscriber(subscriber);
-
-
+    
     let (s3_client, dynamodb_client) = configure_aws(&db_settings).await;
 
     let newsletter_store_arc: Arc<dyn NewsletterStore + Send + Sync> =

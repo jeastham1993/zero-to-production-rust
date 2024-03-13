@@ -10,15 +10,12 @@ import {
 import { IVpc } from "aws-cdk-lib/aws-ec2";
 import {
   Architecture,
-  DockerImageCode,
-  DockerImageFunction,
   IFunction,
   LayerVersion,
 } from "aws-cdk-lib/aws-lambda";
 import { Bucket } from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
 import { LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
-import { getParameter } from "@aws-lambda-powertools/parameters/ssm";
 import * as rust from "@cdklabs/aws-lambda-rust";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as fs from "fs";
@@ -76,12 +73,10 @@ export class NewsletterApi extends Construct {
     });
 
     this.ApiFunction = new rust.RustFunction(this, "ApiFunction", {
-      entry: '../src/api/Cargo.toml',
+      entry: '../src/Cargo.toml',
+      binaryName: 'zero2prod',
       memorySize: 256,
       architecture: Architecture.ARM_64,
-      bundling: {
-        forceDockerBundling: false,
-      },
       environment: {
         APP_TELEMETRY__DATASET_NAME: "zero2prod-api",
         APP_DATABASE__DATABASE_NAME: this.NewsletterTable.tableName,
@@ -91,10 +86,17 @@ export class NewsletterApi extends Construct {
         LOG_LEVEL: "error",
         AWS_LWA_REMOVE_BASE_PATH: "/prod",
         CONFIG_PARAMETER_NAME: configParameter.parameterName,
-        APP_ENVIRONMENT: "production"
+        APP_ENVIRONMENT: "production",
+        AWS_LAMBDA_EXEC_WRAPPER: "/opt/datadog_wrapper",
+        DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: "localhost:4318",
+        DD_SITE: "datadoghq.eu",
+        DD_API_KEY: process.env.DATADOG_API_KEY ?? "",
+        DD_ENV: "production",
+        DD_SERVICE: "nxt-api"
       },
       layers: [
-        LayerVersion.fromLayerVersionArn(this, "LWALayer", "arn:aws:lambda:eu-west-1:753240598075:layer:LambdaAdapterLayerArm64:20")
+        LayerVersion.fromLayerVersionArn(this, "LWALayer", "arn:aws:lambda:eu-west-1:753240598075:layer:LambdaAdapterLayerArm64:20"),
+        LayerVersion.fromLayerVersionArn(this, "DDExtension", "arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension-ARM:55")
       ],
     });
 
